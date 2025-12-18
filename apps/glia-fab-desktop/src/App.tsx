@@ -317,6 +317,29 @@ export default function App() {
     }
   }
 
+  async function bootstrapDevKernel() {
+    if (!activeProject) {
+      setError("Select a project first.");
+      return;
+    }
+    if (!activeProject.dev_kernel_dir) {
+      setError("This project does not contain `dev-kernel/`.");
+      return;
+    }
+    setNewRunLabel("bootstrap_dev_kernel");
+    setNewRunCommand(
+      [
+        'set -e',
+        'mkdir -p .glia-fab',
+        '[ -x .glia-fab/venv/bin/python ] || python3 -m venv .glia-fab/venv',
+        'source .glia-fab/venv/bin/activate',
+        'python -m pip install -U pip',
+        'python -m pip install -e dev-kernel',
+      ].join(' && ')
+    );
+    setIsNewRunOpen(true);
+  }
+
   async function createTerminal() {
     const cwd = activeProject?.root ?? null;
     const cols = xtermRef.current?.cols ?? 120;
@@ -531,6 +554,14 @@ export default function App() {
                   <div className="row">
                     <button className="btn" onClick={createTerminal} disabled={!activeProject}>
                       New Terminal
+                    </button>
+                    <button
+                      className="btn primary"
+                      onClick={bootstrapDevKernel}
+                      disabled={!activeProject || !activeProject.dev_kernel_dir}
+                      title="Creates .glia-fab/venv and installs dev-kernel deps"
+                    >
+                      Bootstrap Dev Kernel
                     </button>
                   </div>
                 </div>

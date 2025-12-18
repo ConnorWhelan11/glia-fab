@@ -150,6 +150,8 @@ PYTHON="${{GLIA_FAB_PYTHON:-}}"
 if [[ -z "$PYTHON" ]]; then
   if [[ -n "${{VIRTUAL_ENV:-}}" && -x "${{VIRTUAL_ENV}}/bin/python" ]]; then
     PYTHON="${{VIRTUAL_ENV}}/bin/python"
+  elif [[ -x "$ROOT/.glia-fab/venv/bin/python" ]]; then
+    PYTHON="$ROOT/.glia-fab/venv/bin/python"
   elif [[ -x "$ROOT/.venv/bin/python" ]]; then
     PYTHON="$ROOT/.venv/bin/python"
   elif [[ -x "$ROOT/dev-kernel/.venv/bin/python" ]]; then
@@ -630,6 +632,10 @@ fn job_start(app: AppHandle, params: JobStartParams) -> CommandResult<JobInfo> {
   cmd.env("GLIA_FAB_RUN_ID", &run_id);
   cmd.env("GLIA_FAB_RUN_DIR", run_dir_str.clone());
   cmd.env("GLIA_FAB_PROJECT_ROOT", &params.project_root);
+  let venv_python = PathBuf::from(&params.project_root).join(".glia-fab/venv/bin/python");
+  if venv_python.is_file() {
+    cmd.env("GLIA_FAB_PYTHON", venv_python.to_string_lossy().to_string());
+  }
   if let Ok(bin) = ensure_project_shims(&PathBuf::from(&params.project_root)) {
     let new_path = prepend_path(&bin, std::env::var_os("PATH"));
     cmd.env("PATH", new_path);
@@ -777,6 +783,10 @@ fn pty_create(
     let root = PathBuf::from(cwd);
     cmd.cwd(cwd);
     cmd.env("GLIA_FAB_PROJECT_ROOT", cwd);
+    let venv_python = root.join(".glia-fab/venv/bin/python");
+    if venv_python.is_file() {
+      cmd.env("GLIA_FAB_PYTHON", venv_python.to_string_lossy().to_string());
+    }
     if let Ok(bin) = ensure_project_shims(&root) {
       let new_path = prepend_path(&bin, std::env::var_os("PATH"));
       cmd.env("PATH", new_path);
