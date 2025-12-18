@@ -45,6 +45,7 @@ type JobInfo = {
 export default function App() {
   const [nav, setNav] = useState<Nav>("projects");
   const [serverInfo, setServerInfo] = useState<ServerInfo | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
   const [activeProjectRoot, setActiveProjectRoot] = useState<string | null>(
@@ -65,6 +66,13 @@ export default function App() {
   const [jobExitCodes, setJobExitCodes] = useState<Record<string, number | null>>(
     {}
   );
+
+  const [isAddProjectOpen, setIsAddProjectOpen] = useState(false);
+  const [newProjectPath, setNewProjectPath] = useState("");
+
+  const [isNewRunOpen, setIsNewRunOpen] = useState(false);
+  const [newRunCommand, setNewRunCommand] = useState("ls -la");
+  const [newRunLabel, setNewRunLabel] = useState("");
 
   const terminalRef = useRef<HTMLDivElement | null>(null);
   const xtermRef = useRef<Terminal | null>(null);
@@ -92,30 +100,46 @@ export default function App() {
 
   useEffect(() => {
     (async () => {
-      const info = await invoke<ServerInfo>("get_server_info");
-      setServerInfo(info);
+      try {
+        const info = await invoke<ServerInfo>("get_server_info");
+        setServerInfo(info);
+      } catch (e) {
+        setError(String(e));
+      }
     })();
   }, []);
 
   async function refreshRuns(projectRoot: string) {
-    const list = await invoke<RunInfo[]>("runs_list", { projectRoot });
-    setRuns(list);
+    try {
+      const list = await invoke<RunInfo[]>("runs_list", { projectRoot });
+      setRuns(list);
+    } catch (e) {
+      setError(String(e));
+    }
   }
 
   async function loadArtifacts(projectRoot: string, runId: string) {
-    const list = await invoke<ArtifactInfo[]>("run_artifacts", {
-      projectRoot,
-      runId,
-    });
-    setArtifacts(list);
-    setActiveArtifactRelPath(null);
-    setArtifactText(null);
+    try {
+      const list = await invoke<ArtifactInfo[]>("run_artifacts", {
+        projectRoot,
+        runId,
+      });
+      setArtifacts(list);
+      setActiveArtifactRelPath(null);
+      setArtifactText(null);
+    } catch (e) {
+      setError(String(e));
+    }
   }
 
   useEffect(() => {
     (async () => {
-      const list = await invoke<PtySessionInfo[]>("pty_list");
-      setSessions(list);
+      try {
+        const list = await invoke<PtySessionInfo[]>("pty_list");
+        setSessions(list);
+      } catch (e) {
+        setError(String(e));
+      }
     })();
   }, []);
 
@@ -243,43 +267,67 @@ export default function App() {
     );
   }, [nav, activeSessionId]);
 
-  async function addProject() {
-    const root = window.prompt("Project path (repo root):");
-    if (!root) return;
-    const info = await invoke<ProjectInfo>("detect_project", { root });
-    setProjects((prev) => {
-      const exists = prev.some((p) => p.root === info.root);
-      return exists ? prev : [...prev, info];
-    });
-    setActiveProjectRoot(info.root);
-    if (info.viewer_dir) {
-      await invoke("set_server_roots", { viewerDir: info.viewer_dir, projectRoot: info.root });
-    } else {
-      await invoke("set_server_roots", { viewerDir: null, projectRoot: info.root });
+  async function confirmAddProject() {
+    const root = newProjectPath.trim();
+    if (!root) {
+      setError("Project path is required.");
+      return;
     }
-    await refreshRuns(info.root);
+
+    try {
+      const info = await invoke<ProjectInfo>("detect_project", { root });
+      setProjects((prev) => {
+        const exists = prev.some((p) => p.root === info.root);
+        return exists ? prev : [...prev, info];
+      });
+      setActiveProjectRoot(info.root);
+      await invoke("set_server_roots", {
+        viewerDir: info.viewer_dir ?? null,
+        projectRoot: info.root,
+      });
+      await refreshRuns(info.root);
+      setIsAddProjectOpen(false);
+      setNewProjectPath("");
+    } catch (e) {
+      setError(String(e));
+    }
   }
 
   async function setActiveProject(root: string) {
     setActiveProjectRoot(root);
     const info = projects.find((p) => p.root === root) ?? null;
-    await invoke("set_server_roots", { viewerDir: info?.viewer_dir ?? null, projectRoot: root });
-    await refreshRuns(root);
+    try {
+      await invoke("set_server_roots", {
+        viewerDir: info?.viewer_dir ?? null,
+        projectRoot: root,
+      });
+      await refreshRuns(root);
+    } catch (e) {
+      setError(String(e));
+    }
   }
 
   async function createTerminal() {
     const cwd = activeProject?.root ?? null;
     const cols = xtermRef.current?.cols ?? 120;
     const rows = xtermRef.current?.rows ?? 34;
-    const id = await invoke<string>("pty_create", { cwd, cols, rows });
-    const list = await invoke<PtySessionInfo[]>("pty_list");
-    setSessions(list);
-    setActiveSessionId(id);
-    setNav("terminals");
+    try {
+      const id = await invoke<string>("pty_create", { cwd, cols, rows });
+      const list = await invoke<PtySessionInfo[]>("pty_list");
+      setSessions(list);
+      setActiveSessionId(id);
+      setNav("terminals");
+    } catch (e) {
+      setError(String(e));
+    }
   }
 
   async function killTerminal(sessionId: string) {
-    await invoke("pty_kill", { sessionId });
+    try {
+      await invoke("pty_kill", { sessionId });
+    } catch (e) {
+      setError(String(e));
+    }
   }
 
   const viewerUrl = useMemo(() => {
@@ -294,25 +342,34 @@ export default function App() {
     return `${serverInfo.base_url}${activeArtifact.url}`;
   }, [serverInfo, activeArtifact]);
 
-  async function startRun() {
+  async function confirmStartRun() {
     if (!activeProject) {
-      window.alert("Select a project first.");
+      setError("Select a project first.");
       return;
     }
-    const command = window.prompt("Command to run:", "ls -la");
-    if (!command) return;
-    const label = window.prompt("Label (optional):", "") ?? "";
-    const job = await invoke<JobInfo>("job_start", {
-      projectRoot: activeProject.root,
-      command,
-      label: label.trim() ? label.trim() : null,
-    });
-    setJobOutputs((prev) => ({ ...prev, [job.runId]: "" }));
-    setJobExitCodes((prev) => ({ ...prev, [job.runId]: null }));
-    setActiveRunId(job.runId);
-    setNav("runs");
-    await refreshRuns(activeProject.root);
-    await loadArtifacts(activeProject.root, job.runId);
+    const command = newRunCommand.trim();
+    if (!command) {
+      setError("Command is required.");
+      return;
+    }
+
+    try {
+      const job = await invoke<JobInfo>("job_start", {
+        projectRoot: activeProject.root,
+        command,
+        label: newRunLabel.trim() ? newRunLabel.trim() : null,
+      });
+      setJobOutputs((prev) => ({ ...prev, [job.runId]: "" }));
+      setJobExitCodes((prev) => ({ ...prev, [job.runId]: null }));
+      setActiveRunId(job.runId);
+      setNav("runs");
+      await refreshRuns(activeProject.root);
+      await loadArtifacts(activeProject.root, job.runId);
+      setIsNewRunOpen(false);
+      setNewRunLabel("");
+    } catch (e) {
+      setError(String(e));
+    }
   }
 
   async function selectRun(runId: string) {
@@ -330,18 +387,22 @@ export default function App() {
     const artifact = artifacts.find((a) => a.relPath === relPath) ?? null;
     if (!artifact || !serverInfo) return;
     if (artifact.kind !== "json" && artifact.kind !== "text" && artifact.kind !== "html") return;
-    const url = `${serverInfo.base_url}${artifact.url}`;
-    const res = await fetch(url, { cache: "no-store" });
-    const text = await res.text();
-    if (artifact.kind === "json") {
-      try {
-        setArtifactText(JSON.stringify(JSON.parse(text), null, 2));
-        return;
-      } catch {
-        // fall through
+    try {
+      const url = `${serverInfo.base_url}${artifact.url}`;
+      const res = await fetch(url, { cache: "no-store" });
+      const text = await res.text();
+      if (artifact.kind === "json") {
+        try {
+          setArtifactText(JSON.stringify(JSON.parse(text), null, 2));
+          return;
+        } catch {
+          // fall through
+        }
       }
+      setArtifactText(text);
+    } catch (e) {
+      setError(String(e));
     }
-    setArtifactText(text);
   }
 
   return (
@@ -392,12 +453,32 @@ export default function App() {
       </div>
 
       <div className="main">
+        {error && (
+          <div className="panel" style={{ marginBottom: 12 }}>
+            <div className="panel-header">
+              <div className="panel-title">Error</div>
+              <button className="btn" onClick={() => setError(null)}>
+                Dismiss
+              </button>
+            </div>
+            <div style={{ padding: 14 }} className="muted">
+              {error}
+            </div>
+          </div>
+        )}
+
         {nav === "projects" && (
           <div className="panel" style={{ height: "100%" }}>
             <div className="panel-header">
               <div className="panel-title">Projects</div>
               <div className="row">
-                <button className="btn primary" onClick={addProject}>
+                <button
+                  className="btn primary"
+                  onClick={() => {
+                    setNewProjectPath("");
+                    setIsAddProjectOpen(true);
+                  }}
+                >
                   Add Project
                 </button>
               </div>
@@ -474,7 +555,15 @@ export default function App() {
             <div className="panel-header">
               <div className="panel-title">Runs</div>
               <div className="row">
-                <button className="btn primary" onClick={startRun} disabled={!activeProject}>
+                <button
+                  className="btn primary"
+                  onClick={() => {
+                    setNewRunCommand("ls -la");
+                    setNewRunLabel("");
+                    setIsNewRunOpen(true);
+                  }}
+                  disabled={!activeProject}
+                >
                   New Run
                 </button>
                 <button
@@ -733,6 +822,80 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {isAddProjectOpen && (
+        <div className="modal-overlay" onClick={() => setIsAddProjectOpen(false)}>
+          <div className="panel modal" onClick={(e) => e.stopPropagation()}>
+            <div className="panel-header">
+              <div className="panel-title">Add Project</div>
+              <button className="btn" onClick={() => setIsAddProjectOpen(false)}>
+                Close
+              </button>
+            </div>
+            <div className="form">
+              <div className="muted">Paste the repo root path (absolute).</div>
+              <input
+                className="text-input"
+                autoFocus
+                value={newProjectPath}
+                onChange={(e) => setNewProjectPath(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") confirmAddProject();
+                }}
+                placeholder="/Users/…/glia-fab"
+              />
+              <div className="row" style={{ justifyContent: "flex-end" }}>
+                <button className="btn" onClick={() => setIsAddProjectOpen(false)}>
+                  Cancel
+                </button>
+                <button className="btn primary" onClick={confirmAddProject}>
+                  Add
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isNewRunOpen && (
+        <div className="modal-overlay" onClick={() => setIsNewRunOpen(false)}>
+          <div className="panel modal" onClick={(e) => e.stopPropagation()}>
+            <div className="panel-header">
+              <div className="panel-title">New Run</div>
+              <button className="btn" onClick={() => setIsNewRunOpen(false)}>
+                Close
+              </button>
+            </div>
+            <div className="form">
+              <div className="muted">Command runs in the project root and writes to `.glia-fab/runs/…`.</div>
+              <input
+                className="text-input"
+                autoFocus
+                value={newRunCommand}
+                onChange={(e) => setNewRunCommand(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") confirmStartRun();
+                }}
+                placeholder="fab-gate --config …"
+              />
+              <input
+                className="text-input"
+                value={newRunLabel}
+                onChange={(e) => setNewRunLabel(e.target.value)}
+                placeholder="Label (optional)"
+              />
+              <div className="row" style={{ justifyContent: "flex-end" }}>
+                <button className="btn" onClick={() => setIsNewRunOpen(false)}>
+                  Cancel
+                </button>
+                <button className="btn primary" onClick={confirmStartRun}>
+                  Start
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

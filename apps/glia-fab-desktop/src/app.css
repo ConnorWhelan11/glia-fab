@@ -185,3 +185,35 @@ body {
   background: #000;
 }
 
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: grid;
+  place-items: center;
+  z-index: 1000;
+}
+
+.modal {
+  width: min(720px, 92vw);
+}
+
+.form {
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.text-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--text);
+  outline: none;
+}
+
+.text-input:focus {
+  border-color: rgba(212, 165, 116, 0.45);
+}
