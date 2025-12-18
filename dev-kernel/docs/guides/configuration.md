@@ -74,10 +74,10 @@ routing:
   rules:
     # Match by explicit hint
     - match: { dk_tool_hint: "codex" }
-      use: codex
+      use: [codex]
 
     - match: { dk_tool_hint: "claude" }
-      use: claude
+      use: [claude]
 
     # Match by task characteristics
     - match:
@@ -96,6 +96,7 @@ routing:
     - match:
         dk_risk: ["high", "critical"]
       speculate: true
+      parallelism: 2
       use: [codex, claude, opencode]
 
     # Default fallback

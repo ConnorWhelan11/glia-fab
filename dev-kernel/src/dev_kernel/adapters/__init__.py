@@ -13,6 +13,7 @@ from dev_kernel.adapters.base import CostEstimate, PatchProof, ToolchainAdapter
 from dev_kernel.adapters.codex import CodexAdapter
 from dev_kernel.adapters.claude import ClaudeAdapter
 from dev_kernel.adapters.crush import CrushAdapter
+from dev_kernel.adapters.opencode import OpenCodeAdapter
 from dev_kernel.adapters.router import ToolchainRouter, RoutingDecision
 from dev_kernel.adapters.blender import (
     BlenderAgentAdapter,
@@ -36,6 +37,7 @@ __all__ = [
     "CodexAdapter",
     "ClaudeAdapter",
     "CrushAdapter",
+    "OpenCodeAdapter",
     "ToolchainRouter",
     "RoutingDecision",
     # Blender adapter
@@ -66,6 +68,7 @@ def get_adapter(name: str, config: dict | None = None) -> ToolchainAdapter | Non
     adapters: dict[str, type[ToolchainAdapter]] = {
         "codex": CodexAdapter,
         "claude": ClaudeAdapter,
+        "opencode": OpenCodeAdapter,
         "crush": CrushAdapter,
     }
 
@@ -91,5 +94,9 @@ def get_available_adapters() -> list[str]:
     crush = CrushAdapter()
     if crush.available:
         available.append("crush")
+
+    opencode = OpenCodeAdapter()
+    if opencode.available:
+        available.append("opencode")
 
     return available

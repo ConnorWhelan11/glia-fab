@@ -82,34 +82,73 @@ def initialize_kernel(config_path: Path) -> None:
 def _create_default_config() -> dict:
     """Create the default configuration dictionary."""
     return {
-        "max_concurrent_workcells": 3,
-        "max_concurrent_tokens": 200_000,
-        "starvation_threshold_hours": 4.0,
+        "version": "1.0",
+        "scheduling": {
+            "max_concurrent_workcells": 3,
+            "max_concurrent_tokens": 200_000,
+            "starvation_threshold_hours": 4.0,
+        },
         "toolchain_priority": ["codex", "claude", "opencode", "crush"],
         "toolchains": {
             "codex": {
                 "enabled": True,
-                "command": "codex --approval-mode full-auto",
-                "timeout_seconds": 1800,
+                "path": "codex",
+                "default_model": "gpt-5.2",
+                "timeout_minutes": 30,
                 "max_tokens": 100_000,
+                "config": {
+                    "sandbox": "workspace-write",
+                    "ask_for_approval": "never",
+                },
             },
             "claude": {
                 "enabled": True,
-                "command": "claude --dangerously-skip-permissions",
-                "timeout_seconds": 1800,
+                "path": "claude",
+                "default_model": "opus",
+                "timeout_minutes": 45,
                 "max_tokens": 100_000,
+                "config": {
+                    "skip_permissions": True,
+                    "output_format": "json",
+                    "allowed_tools": ["Edit", "Write", "Bash", "Read"],
+                },
             },
             "opencode": {
-                "enabled": False,
-                "command": "opencode",
-                "timeout_seconds": 1800,
+                "enabled": True,
+                "path": "opencode",
+                "default_model": "openai/gpt-5-nano",
+                "timeout_minutes": 30,
                 "max_tokens": 100_000,
             },
             "crush": {
                 "enabled": False,
-                "command": "crush",
-                "timeout_seconds": 1800,
+                "path": "crush",
+                "timeout_minutes": 30,
                 "max_tokens": 100_000,
+                "config": {
+                    "auto_approve": True,
+                },
+            },
+        },
+        "routing": {
+            "rules": [
+                {"match": {"dk_tool_hint": "codex"}, "use": ["codex"]},
+                {"match": {"dk_tool_hint": "claude"}, "use": ["claude"]},
+                {"match": {"dk_tool_hint": "opencode"}, "use": ["opencode"]},
+                {"match": {"dk_tool_hint": "crush"}, "use": ["crush"]},
+                {
+                    "match": {"dk_risk": ["high", "critical"]},
+                    "speculate": True,
+                    "parallelism": 2,
+                    "use": ["codex", "claude"],
+                },
+                {"match": {}, "use": ["claude"]},
+            ],
+            "fallbacks": {
+                "codex": ["claude", "opencode"],
+                "claude": ["codex", "opencode"],
+                "opencode": ["claude"],
+                "crush": ["opencode", "claude"],
             },
         },
         "gates": {
@@ -129,4 +168,3 @@ def _create_default_config() -> dict:
             "auto_trigger_risk_levels": ["high", "critical"],
         },
     }
-

@@ -244,61 +244,126 @@ class KernelRunner:
 
     async def _dispatch_speculate_async(self, issue: Issue) -> None:
         """Dispatch multiple parallel workcells for speculate+vote."""
-        parallelism = self.config.speculation.default_parallelism
+        from dev_kernel.kernel.routing import speculate_parallelism, speculate_toolchains
+
+        # Determine which toolchains to run in parallel for this issue.
+        candidates = speculate_toolchains(self.config, issue)
+        if not candidates:
+            candidates = list(self.config.toolchain_priority)
+
+        available = set(self.dispatcher.get_available_toolchains())
+        candidates = [c for c in candidates if c in available]
+
+        if not candidates:
+            console.print("  [red]No available toolchains for speculate[/red]")
+            return
+
+        desired_parallelism = speculate_parallelism(self.config, issue)
+        parallelism = min(desired_parallelism, len(candidates)) or 1
+        candidates = candidates[:parallelism]
         console.print(
             f"\n[magenta]Speculate[/magenta] #{issue.id}: {issue.title} "
-            f"(×{parallelism})"
+            f"(×{parallelism}: {', '.join(candidates)})"
         )
 
         # Track as running
         self._running_tasks.add(issue.id)
 
         try:
-            # Create multiple workcells
-            workcell_paths = []
-            for i in range(parallelism):
-                tag = f"spec-{i}"
+            # Create one workcell per candidate toolchain.
+            workcells: list[tuple[str, str, Path]] = []
+            for toolchain in candidates:
+                tag = f"spec-{toolchain}"
                 path = self.workcell_manager.create(issue.id, speculate_tag=tag)
-                workcell_paths.append((tag, path))
+                workcells.append((toolchain, tag, path))
 
             # Update issue status
             self.state_manager.update_issue_status(issue.id, "running")
 
-            # Dispatch in parallel via speculate
-            result = await self.dispatcher.dispatch_speculate(issue, workcell_paths)
-
-            if result.all_failed:
-                await self._handle_failure(
+            # Dispatch all candidates in parallel (one per toolchain).
+            dispatch_tasks = [
+                self.dispatcher.dispatch_async(
                     issue,
-                    result.candidates[0] if result.candidates else None,
-                    workcell_paths[0][1],
+                    path,
+                    speculate_tag=tag,
+                    toolchain_override=toolchain,
                 )
-            elif result.winner and result.winner.proof:
-                # Find winner's path
-                winner_path = workcell_paths[0][1]
-                for tag, path in workcell_paths:
-                    if tag == result.winner.speculate_tag:
-                        winner_path = path
+                for toolchain, tag, path in workcells
+            ]
+            results = await asyncio.gather(*dispatch_tasks)
+
+            workcell_by_id = {path.name: path for _, _, path in workcells}
+
+            # Verify all candidates before voting.
+            for r in results:
+                if r.proof:
+                    path = workcell_by_id.get(r.workcell_id)
+                    if path:
+                        self.verifier.verify(r.proof, path)
+
+            proofs = [r.proof for r in results if r.proof]
+            winner_proof = self.verifier.vote(proofs) if proofs else None
+
+            winner_result: DispatchResult | None = None
+            winner_path: Path | None = None
+
+            if winner_proof:
+                for r in results:
+                    if r.proof and r.proof.workcell_id == winner_proof.workcell_id:
+                        winner_result = r
+                        winner_path = workcell_by_id.get(r.workcell_id)
                         break
 
-                # Verify winner
-                verified = self.verifier.verify(result.winner.proof, winner_path)
-
-                if verified:
-                    await self._handle_success(issue, result.winner, winner_path)
+            # Fallback if vote didn't return a winner (e.g., all failed gates).
+            if not winner_result:
+                passing = [
+                    r
+                    for r in results
+                    if r.proof
+                    and isinstance(r.proof.verification, dict)
+                    and r.proof.verification.get("all_passed", False)
+                ]
+                if passing:
+                    passing.sort(
+                        key=lambda x: x.proof.confidence if x.proof else 0,
+                        reverse=True,
+                    )
+                    winner_result = passing[0]
+                    winner_path = workcell_by_id.get(winner_result.workcell_id)
                 else:
-                    await self._handle_failure(issue, result.winner, winner_path)
+                    successful = [r for r in results if r.success and r.proof]
+                    if successful:
+                        successful.sort(
+                            key=lambda x: x.proof.confidence if x.proof else 0,
+                            reverse=True,
+                        )
+                        winner_result = successful[0]
+                        winner_path = workcell_by_id.get(winner_result.workcell_id)
 
-                # Cleanup non-winners
-                for tag, path in workcell_paths:
-                    if tag != result.winner.speculate_tag:
-                        self.workcell_manager.cleanup(path, keep_logs=False)
+            # If still no winner, fail the issue using the first candidate (best-effort).
+            if not winner_result or not winner_path:
+                fallback_path = workcells[0][2]
+                await self._handle_failure(issue, results[0] if results else None, fallback_path)
+                for _, _, path in workcells[1:]:
+                    self.workcell_manager.cleanup(path, keep_logs=False)
+                return
+
+            verified = (
+                bool(winner_result.proof)
+                and isinstance(winner_result.proof.verification, dict)
+                and winner_result.proof.verification.get("all_passed", False)
+            )
+
+            if verified:
+                await self._handle_success(issue, winner_result, winner_path)
             else:
-                await self._handle_failure(
-                    issue,
-                    result.candidates[0] if result.candidates else None,
-                    workcell_paths[0][1],
-                )
+                await self._handle_failure(issue, winner_result, winner_path)
+
+            # Cleanup non-winners (keep logs only for the chosen candidate).
+            for _, _, path in workcells:
+                if path.name == winner_path.name:
+                    continue
+                self.workcell_manager.cleanup(path, keep_logs=False)
 
         finally:
             self._running_tasks.discard(issue.id)

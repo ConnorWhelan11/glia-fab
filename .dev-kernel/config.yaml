@@ -1,0 +1,136 @@
+version: "1.0"
+
+# Glia Fab defaults: "best tool for the job" routing
+#
+# Notes:
+# - `dk_tool_hint` on an issue always wins (codex/claude/opencode/crush).
+# - Speculate+vote runs multiple toolchains in parallel (configured below) and
+#   picks the best passing candidate.
+# - Gate commands run from the repo root inside each workcell.
+
+# ============================================
+# SCHEDULING
+# ============================================
+scheduling:
+  max_concurrent_workcells: 3
+  max_concurrent_tokens: 300000
+  starvation_threshold_hours: 4
+
+# ============================================
+# TOOLCHAINS
+# ============================================
+toolchain_priority:
+  - codex
+  - claude
+  - opencode
+  - crush
+
+toolchains:
+  # High-complexity / deep-reasoning specialist
+  codex:
+    enabled: true
+    path: codex
+    default_model: gpt-5.2
+    timeout_minutes: 60
+    config:
+      sandbox: workspace-write
+      ask_for_approval: never
+      # Extra Codex CLI args (optional). Example:
+      # extra_args:
+      #   - "-c"
+      #   - "reasoning.effort=\"high\""
+
+  # General-purpose workhorse
+  claude:
+    enabled: true
+    path: claude
+    default_model: opus
+    timeout_minutes: 60
+    config:
+      skip_permissions: true
+      output_format: json
+      allowed_tools: ["Edit", "Write", "Bash", "Read"]
+
+  # Cheap / medium-low complexity (OpenAI via OpenCode)
+  opencode:
+    enabled: true
+    path: opencode
+    default_model: openai/gpt-5-nano
+    timeout_minutes: 45
+
+  # Multi-provider / Gemini via Crush (configure Crush providers separately)
+  crush:
+    enabled: true
+    path: crush
+    timeout_minutes: 45
+    config:
+      auto_approve: true
+
+# ============================================
+# ROUTING
+# ============================================
+routing:
+  rules:
+    # Explicit tool hint
+    - match: { dk_tool_hint: "codex" }
+      use: [codex]
+    - match: { dk_tool_hint: "claude" }
+      use: [claude]
+    - match: { dk_tool_hint: "opencode" }
+      use: [opencode]
+    - match: { dk_tool_hint: "crush" }
+      use: [crush]
+
+    # High-risk work: speculate across best+workhorse (and optionally a cheap 3rd)
+    - match: { dk_risk: ["critical"] }
+      speculate: true
+      parallelism: 3
+      use: [codex, claude, crush]
+
+    - match: { dk_risk: ["high"] }
+      speculate: true
+      parallelism: 2
+      use: [codex, claude]
+
+    # Deep reasoning / large context → Codex
+    - match: { dk_size: ["XL"] }
+      use: [codex]
+    - match: { tags_any: ["architecture", "complex", "kernel", "deep-reasoning"] }
+      use: [codex]
+
+    # Low-risk / small tasks → cheap model
+    - match: { dk_risk: ["low"], dk_size: ["XS", "S"] }
+      use: [opencode]
+
+    # Default: Claude workhorse
+    - match: {}
+      use: [claude]
+
+  fallbacks:
+    codex: [claude, opencode]
+    claude: [codex, opencode]
+    opencode: [claude]
+    crush: [opencode, claude]
+
+# ============================================
+# SPECULATION
+# ============================================
+speculation:
+  enabled: true
+  default_parallelism: 2
+  max_parallelism: 3
+  vote_threshold: 0.7
+  auto_trigger_on_critical_path: true
+  auto_trigger_risk_levels: ["high", "critical"]
+
+# ============================================
+# QUALITY GATES
+# ============================================
+gates:
+  test_command: "cd dev-kernel && pytest -q"
+  typecheck_command: "cd dev-kernel && mypy src/dev_kernel"
+  lint_command: "cd dev-kernel && ruff check ."
+  build_command: null
+  timeout_seconds: 900
+  retry_flaky: 1
+

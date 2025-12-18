@@ -62,24 +62,26 @@ class CodexAdapter(ToolchainAdapter):
         prompt_file = workcell_path / "prompt.md"
         prompt_file.write_text(prompt)
 
-        # Execute Codex CLI
+        # Execute Codex CLI (non-interactive)
         cmd = [
             "codex",
-            "--prompt", f"@{prompt_file}",
-            "--approval-mode", "full-auto",
-            "--model", manifest.toolchain_config.get("model", "o3"),
-            "--json"
+            "exec",
+            "-",  # read prompt from stdin
+            "--sandbox", "workspace-write",
+            "--ask-for-approval", "never",
+            "--model", manifest.toolchain_config.get("model", "gpt-5.2"),
         ]
 
         result = await asyncio.create_subprocess_exec(
             *cmd,
             cwd=workcell_path,
+            stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
 
         stdout, stderr = await asyncio.wait_for(
-            result.communicate(),
+            result.communicate(input=prompt.encode()),
             timeout=timeout.total_seconds()
         )
 
@@ -88,14 +90,17 @@ class CodexAdapter(ToolchainAdapter):
 
 ### Codex Configuration
 
-```toml
-# ~/.codex/config.toml
-[mcp]
-servers = ["beads-mcp"]
-
-[defaults]
-model = "o3"
-approval_mode = "full-auto"
+```yaml
+# .dev-kernel/config.yaml
+toolchains:
+  codex:
+    default_model: gpt-5.2
+    config:
+      sandbox: workspace-write
+      ask_for_approval: never
+      # extra_args:
+      #   - "-c"
+      #   - "reasoning.effort=\"high\""
 ```
 
 ## Claude Code Adapter
@@ -118,15 +123,12 @@ class ClaudeCodeAdapter(ToolchainAdapter):
 
         cmd = [
             "claude",
-            "--print",
+            "--print", f"@{prompt_file}",
+            "--model", manifest.toolchain_config.get("model", "opus"),
             "--output-format", "json",
-            "-p", prompt,
-            "--allowedTools", "Edit,Write,Bash,Read"
+            "--allowedTools", "Edit", "Write", "Bash", "Read",
+            "--dangerously-skip-permissions",
         ]
-
-        # Add MCP config if available
-        if (workcell_path / ".mcp.json").exists():
-            cmd.extend(["--mcp-config", ".mcp.json"])
 
         result = await asyncio.create_subprocess_exec(
             *cmd,
@@ -158,12 +160,16 @@ class OpenCodeAdapter(ToolchainAdapter):
         timeout: timedelta
     ) -> PatchProof:
         prompt = self._build_prompt(manifest)
+        prompt_file = workcell_path / "prompt.md"
+        prompt_file.write_text(prompt)
 
         cmd = [
             "opencode",
-            "--non-interactive",
-            "--json-output",
-            prompt
+            "run",
+            "--format", "json",
+            "--file", str(prompt_file),
+            "--model", manifest.toolchain_config.get("model", "openai/gpt-5-nano"),
+            "Execute the task described in prompt.md",
         ]
 
         result = await asyncio.create_subprocess_exec(
@@ -199,21 +205,21 @@ class CrushAdapter(ToolchainAdapter):
 
         cmd = [
             "crush",
-            "--non-interactive",
-            "--allow", "read,write,execute",
-            "--json",
-            "-m", prompt
+            "-y",
+            "run",
+            "--quiet",
         ]
 
         result = await asyncio.create_subprocess_exec(
             *cmd,
             cwd=workcell_path,
+            stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
 
         stdout, stderr = await asyncio.wait_for(
-            result.communicate(),
+            result.communicate(input=prompt.encode()),
             timeout=timeout.total_seconds()
         )
 
@@ -226,13 +232,11 @@ class CrushAdapter(ToolchainAdapter):
 routing:
   rules:
     # Route by task hints
-    - match:
-        dk_tool_hint: "codex"
-      use: codex
+    - match: { dk_tool_hint: "codex" }
+      use: [codex]
 
-    - match:
-        dk_tool_hint: "claude"
-      use: claude
+    - match: { dk_tool_hint: "claude" }
+      use: [claude]
 
     # Route by task type
     - match:
@@ -248,9 +252,9 @@ routing:
       use: claude  # Claude handles large context well
 
     # Route by risk
-    - match:
-        dk_risk: ["high", "critical"]
+    - match: { dk_risk: ["high", "critical"] }
       speculate: true
+      parallelism: 2
       use: [codex, claude, opencode]
 
     # Default
@@ -340,4 +344,3 @@ class CustomAdapter(ToolchainAdapter):
         # Your implementation
         ...
 ```
-

@@ -82,18 +82,19 @@ class TestCodexAdapter:
         assert estimate.estimated_tokens == 50000  # default
         assert estimate.estimated_cost_usd > 0
 
-    def test_build_command(self, tmp_path: Path) -> None:
+    def test_build_command(self) -> None:
         """Should build correct command."""
         adapter = CodexAdapter()
-        prompt_file = tmp_path / "prompt.md"
-        prompt_file.write_text("test")
 
-        cmd = adapter._build_command(prompt_file, "o3")
+        cmd = adapter._build_command("o3")
 
         assert cmd[0] == "codex"
-        assert "--prompt" in cmd
-        assert "--approval-mode" in cmd
-        assert "full-auto" in cmd
+        assert cmd[1] == "exec"
+        assert "-" in cmd  # prompt read from stdin
+        assert "--sandbox" in cmd
+        assert "workspace-write" in cmd
+        assert "--ask-for-approval" in cmd
+        assert "never" in cmd
         assert "--model" in cmd
         assert "o3" in cmd
 
@@ -356,4 +357,3 @@ class TestPatchProof:
         assert d["workcell_id"] == "wc-42"
         assert d["status"] == "success"
         assert d["confidence"] == 0.9
-

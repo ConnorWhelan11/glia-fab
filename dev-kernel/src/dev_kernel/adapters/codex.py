@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import shutil
 import subprocess
 from datetime import datetime, timedelta, timezone
@@ -41,15 +42,31 @@ class CodexAdapter(ToolchainAdapter):
 
     def __init__(self, config: dict | None = None) -> None:
         self.config = config or {}
+        self.executable = str(self.config.get("path") or "codex")
+        self.env = dict(self.config.get("env") or {})
         self.default_model = self.config.get("model", "o3")
+        # Codex CLI uses `--ask-for-approval` and `--sandbox`. Keep `approval_mode` as a
+        # backward-compatible alias.
         self.approval_mode = self.config.get("approval_mode", "full-auto")
+        self.sandbox_mode = self.config.get("sandbox", "workspace-write")
+        self.ask_for_approval = self.config.get("ask_for_approval")
+        if not self.ask_for_approval:
+            if self.approval_mode == "full-auto":
+                self.ask_for_approval = "never"
+            elif self.approval_mode == "ask":
+                self.ask_for_approval = "on-request"
+            else:
+                self.ask_for_approval = "never"
         self._available: bool | None = None
 
     @property
     def available(self) -> bool:
         """Check if codex CLI is available."""
         if self._available is None:
-            self._available = shutil.which("codex") is not None
+            if "/" in self.executable:
+                self._available = Path(self.executable).exists()
+            else:
+                self._available = shutil.which(self.executable) is not None
         return self._available
 
     def execute_sync(
@@ -80,22 +97,25 @@ class CodexAdapter(ToolchainAdapter):
         model = manifest.get("toolchain_config", {}).get("model", self.default_model)
 
         # Build command
-        cmd = self._build_command(prompt_file, model)
+        cmd = self._build_command(model)
 
         logger.info(
             "Executing Codex",
             workcell_id=workcell_id,
             issue_id=issue_id,
             model=model,
-            approval_mode=self.approval_mode,
+            sandbox=self.sandbox_mode,
+            ask_for_approval=self.ask_for_approval,
         )
 
         try:
             result = subprocess.run(
                 cmd,
                 cwd=workcell_path,
+                input=prompt,
                 capture_output=True,
                 text=True,
+                env={**os.environ, **self.env} if self.env else None,
                 timeout=timeout_seconds,
             )
 
@@ -169,7 +189,7 @@ class CodexAdapter(ToolchainAdapter):
         model = manifest.get("toolchain_config", {}).get("model", self.default_model)
 
         # Build command
-        cmd = self._build_command(prompt_file, model)
+        cmd = self._build_command(model)
 
         logger.info(
             "Executing Codex (async)",
@@ -181,12 +201,14 @@ class CodexAdapter(ToolchainAdapter):
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 cwd=workcell_path,
+                stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                env={**os.environ, **self.env} if self.env else None,
             )
 
             stdout, stderr = await asyncio.wait_for(
-                process.communicate(),
+                process.communicate(input=prompt.encode()),
                 timeout=timeout.total_seconds(),
             )
 
@@ -230,7 +252,7 @@ class CodexAdapter(ToolchainAdapter):
 
         try:
             process = await asyncio.create_subprocess_exec(
-                "codex",
+                self.executable,
                 "--version",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
@@ -247,7 +269,7 @@ class CodexAdapter(ToolchainAdapter):
 
         try:
             result = subprocess.run(
-                ["codex", "--version"],
+                [self.executable, "--version"],
                 capture_output=True,
                 timeout=10,
             )
@@ -278,19 +300,24 @@ class CodexAdapter(ToolchainAdapter):
             model=model,
         )
 
-    def _build_command(self, prompt_file: Path, model: str) -> list[str]:
+    def _build_command(self, model: str) -> list[str]:
         """Build the codex command."""
         cmd = [
-            "codex",
-            "--prompt",
-            f"@{prompt_file}",
-            "--approval-mode",
-            self.approval_mode,
+            self.executable,
+            "exec",
+            "-",  # read prompt from stdin
+            "--sandbox",
+            str(self.sandbox_mode),
+            "--ask-for-approval",
+            str(self.ask_for_approval),
         ]
 
-        # Add model if specified
         if model:
             cmd.extend(["--model", model])
+
+        extra_args = self.config.get("extra_args")
+        if isinstance(extra_args, list):
+            cmd.extend([str(a) for a in extra_args])
 
         return cmd
 

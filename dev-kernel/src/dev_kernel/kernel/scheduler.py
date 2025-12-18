@@ -250,9 +250,12 @@ class Scheduler:
             remaining_tokens -= est_tokens
 
             # If speculate mode, reserve additional slots for parallel attempts
-            if issue.dk_speculate and self.config.speculation.enabled:
+            if self.should_speculate(issue, critical_path):
+                from dev_kernel.kernel.routing import speculate_parallelism
+
+                desired_parallelism = speculate_parallelism(self.config, issue)
                 extra_slots = min(
-                    self.config.speculation.default_parallelism - 1,
+                    max(0, desired_parallelism - 1),
                     remaining_slots,
                 )
                 for _ in range(extra_slots):
@@ -280,6 +283,12 @@ class Scheduler:
 
         # Force speculate mode
         if self.config.force_speculate:
+            return True
+
+        # Config-driven routing can request speculation for specific issue shapes.
+        from dev_kernel.kernel.routing import first_matching_rule
+
+        if first_matching_rule(self.config, issue, require_speculate=True) is not None:
             return True
 
         # Auto-trigger for high-risk critical path items

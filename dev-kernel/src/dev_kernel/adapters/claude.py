@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import shutil
 import subprocess
 from datetime import datetime, timedelta, timezone
@@ -41,6 +42,8 @@ class ClaudeAdapter(ToolchainAdapter):
 
     def __init__(self, config: dict | None = None) -> None:
         self.config = config or {}
+        self.executable = str(self.config.get("path") or "claude")
+        self.env = dict(self.config.get("env") or {})
         self.default_model = self.config.get("model", "claude-sonnet-4-20250514")
         self.skip_permissions = self.config.get("skip_permissions", True)
         self._available: bool | None = None
@@ -49,7 +52,10 @@ class ClaudeAdapter(ToolchainAdapter):
     def available(self) -> bool:
         """Check if claude CLI is available."""
         if self._available is None:
-            self._available = shutil.which("claude") is not None
+            if "/" in self.executable:
+                self._available = Path(self.executable).exists()
+            else:
+                self._available = shutil.which(self.executable) is not None
         return self._available
 
     def execute_sync(
@@ -93,6 +99,7 @@ class ClaudeAdapter(ToolchainAdapter):
                 cwd=workcell_path,
                 capture_output=True,
                 text=True,
+                env={**os.environ, **self.env} if self.env else None,
                 timeout=timeout_seconds,
             )
 
@@ -180,6 +187,7 @@ class ClaudeAdapter(ToolchainAdapter):
                 cwd=workcell_path,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                env={**os.environ, **self.env} if self.env else None,
             )
 
             stdout, stderr = await asyncio.wait_for(
@@ -227,7 +235,7 @@ class ClaudeAdapter(ToolchainAdapter):
 
         try:
             process = await asyncio.create_subprocess_exec(
-                "claude",
+                self.executable,
                 "--version",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
@@ -244,7 +252,7 @@ class ClaudeAdapter(ToolchainAdapter):
 
         try:
             result = subprocess.run(
-                ["claude", "--version"],
+                [self.executable, "--version"],
                 capture_output=True,
                 timeout=10,
             )
@@ -277,7 +285,7 @@ class ClaudeAdapter(ToolchainAdapter):
 
     def _build_command(self, prompt_file: Path, model: str) -> list[str]:
         """Build the claude command."""
-        cmd = ["claude"]
+        cmd = [self.executable]
 
         # Add prompt
         cmd.extend(["--print", f"@{prompt_file}"])
@@ -286,9 +294,22 @@ class ClaudeAdapter(ToolchainAdapter):
         if model:
             cmd.extend(["--model", model])
 
+        output_format = self.config.get("output_format")
+        if output_format:
+            cmd.extend(["--output-format", str(output_format)])
+
+        allowed_tools = self.config.get("allowed_tools")
+        if isinstance(allowed_tools, list) and allowed_tools:
+            cmd.append("--allowedTools")
+            cmd.extend([str(t) for t in allowed_tools])
+
         # Skip permissions for autonomous mode
         if self.skip_permissions:
             cmd.append("--dangerously-skip-permissions")
+
+        extra_args = self.config.get("extra_args")
+        if isinstance(extra_args, list):
+            cmd.extend([str(a) for a in extra_args])
 
         return cmd
 

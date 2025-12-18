@@ -21,7 +21,8 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from dev_kernel.adapters import CodexAdapter, ClaudeAdapter, get_adapter
+from dev_kernel.kernel.routing import ordered_toolchain_candidates
+from dev_kernel.adapters import get_adapter
 from dev_kernel.adapters.base import PatchProof
 
 if TYPE_CHECKING:
@@ -75,14 +76,22 @@ class Dispatcher:
     def _init_adapters(self) -> None:
         """Initialize available adapters."""
         for name in self.config.toolchain_priority:
-            tc_config = self.config.toolchains.get(name, {})
-            if isinstance(tc_config, dict):
-                adapter_config = tc_config
-            else:
-                adapter_config = {
-                    "model": getattr(tc_config, "model", None),
-                    "timeout_seconds": getattr(tc_config, "timeout_seconds", 1800),
-                }
+            tc_config = self.config.toolchains.get(name)
+            if tc_config and not tc_config.enabled:
+                continue
+
+            adapter_config: dict[str, Any] = {}
+            if tc_config:
+                adapter_config.update(tc_config.config or {})
+                if tc_config.model and "model" not in adapter_config:
+                    adapter_config["model"] = tc_config.model
+                if tc_config.path and "path" not in adapter_config:
+                    adapter_config["path"] = tc_config.path
+                if tc_config.env:
+                    merged_env = dict(tc_config.env)
+                    if isinstance(adapter_config.get("env"), dict):
+                        merged_env = {**adapter_config["env"], **merged_env}
+                    adapter_config["env"] = merged_env
 
             adapter = get_adapter(name, adapter_config)
             if adapter:
@@ -96,6 +105,7 @@ class Dispatcher:
         issue: Issue,
         workcell_path: Path,
         speculate_tag: str | None = None,
+        toolchain_override: str | None = None,
     ) -> DispatchResult:
         """
         Dispatch a task to a workcell synchronously.
@@ -108,7 +118,7 @@ class Dispatcher:
         workcell_id = workcell_path.name
 
         # Determine toolchain
-        toolchain = self._route_toolchain(issue)
+        toolchain = toolchain_override or self._route_toolchain(issue)
 
         # Build and write manifest
         manifest = self._build_manifest(issue, workcell_id, toolchain, speculate_tag)
@@ -199,6 +209,7 @@ class Dispatcher:
         issue: Issue,
         workcell_path: Path,
         speculate_tag: str | None = None,
+        toolchain_override: str | None = None,
     ) -> DispatchResult:
         """
         Dispatch a task to a workcell asynchronously.
@@ -207,7 +218,7 @@ class Dispatcher:
         workcell_id = workcell_path.name
 
         # Determine toolchain
-        toolchain = self._route_toolchain(issue)
+        toolchain = toolchain_override or self._route_toolchain(issue)
 
         # Build and write manifest
         manifest = self._build_manifest(issue, workcell_id, toolchain, speculate_tag)
@@ -389,12 +400,10 @@ class Dispatcher:
             if issue.dk_tool_hint in self._adapters:
                 return issue.dk_tool_hint
 
-        # Use priority order from config, pick first available
-        for toolchain in self.config.toolchain_priority:
-            if toolchain in self._adapters:
-                adapter = self._adapters[toolchain]
-                if adapter.available:
-                    return toolchain
+        candidates = ordered_toolchain_candidates(self.config, issue)
+        chosen = self._first_available_toolchain(candidates)
+        if chosen:
+            return chosen
 
         # Default to first in priority
         return (
@@ -402,6 +411,14 @@ class Dispatcher:
             if self.config.toolchain_priority
             else "codex"
         )
+
+    def _first_available_toolchain(self, toolchains: list[str]) -> str | None:
+        """Return first toolchain with an available adapter."""
+        for name in toolchains:
+            adapter = self._adapters.get(name)
+            if adapter and adapter.available:
+                return name
+        return None
 
     def _build_manifest(
         self,
