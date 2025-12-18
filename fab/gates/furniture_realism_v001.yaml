@@ -1,0 +1,131 @@
+# Furniture Realism Gate Configuration v001
+# Category: furniture (chairs, tables, sofas, etc.)
+
+gate_config_id: furniture_realism_v001
+category: furniture
+schema_version: "1.0"
+
+# Scene references
+lookdev_scene_id: furniture_lookdev_v001
+camera_rig_id: furniture_camrig_v001
+
+# Render settings (optimized for indoor assets)
+render:
+  engine: CYCLES
+  device: CPU
+  resolution: [768, 512]
+  samples: 128
+  seed: 1337
+  denoise: false
+  film_transparent: false
+
+# Critics configuration
+critics:
+  # Category correctness - detect furniture vs blobs
+  category:
+    enabled: true
+    min_views_passing: 8
+    per_view_conf_min: 0.55 # Slightly lower - furniture is more varied
+    require_clay_agreement: true
+    target_classes:
+      - chair
+      - table
+      - sofa
+      - desk
+      - cabinet
+      - bed
+      - shelf
+    excluded_classes:
+      - blob
+      - abstract
+      - car
+      - person
+
+  # Prompt alignment (CLIP similarity)
+  alignment:
+    enabled: true
+    clip_model: "ViT-L/14"
+    margin_min: 0.06 # Lower margin - furniture descriptions can be subtle
+    views_to_evaluate: 6
+
+  # Visual quality/realism
+  realism:
+    enabled: true
+    aesthetic_min: 0.50 # Furniture can have simpler aesthetics
+    niqe_max: 7.0
+    artifact_checks:
+      noise_threshold: 0.15
+      missing_texture_threshold: 0.05
+      edge_density_min: 0.01
+
+  # Geometry sanity (furniture-specific bounds)
+  geometry:
+    enabled: true
+    bounds_m:
+      # Furniture typically 0.3m - 3m in any dimension
+      length: [0.3, 3.0]
+      width: [0.3, 2.5]
+      height: [0.2, 2.5]
+    triangle_count: [1000, 200000] # Furniture can be simpler
+    symmetry_min: 0.50 # Many furniture pieces aren't symmetric
+    manifold_tolerance: 0.15
+    # Furniture-specific checks
+    ground_contact: true
+    stability_check: true # Check center of mass over base
+
+# Decision logic
+decision:
+  weights:
+    category: 0.30
+    alignment: 0.25
+    realism: 0.20
+    geometry: 0.25
+  overall_pass_min: 0.70 # Slightly lower threshold
+  subscore_floors:
+    category: 0.65
+    geometry: 0.55
+
+# Hard fail codes (immediate rejection)
+hard_fail_codes:
+  - IMPORT_FAILED
+  - MESH_EMPTY
+  - SCALE_INVALID
+  - CAT_NO_FURNITURE_DETECTED
+  - GEO_FLOATING # Not touching ground
+
+# Iteration settings
+iteration:
+  max_iterations: 5
+  vote_pack_on_uncertainty: true
+  uncertainty_band: 0.04
+
+# Repair playbook
+repair_playbook:
+  CAT_NO_FURNITURE_DETECTED:
+    priority: 1
+    instructions: |
+      Add recognizable furniture features:
+      - Clear functional form (seat, surface, storage)
+      - Appropriate proportions for intended use
+      - Legs/base touching ground plane
+  GEO_FLOATING:
+    priority: 2
+    instructions: |
+      Ensure furniture touches ground:
+      - Move lowest vertices to z=0
+      - Add legs/base if missing
+      - Check stability (not tipping)
+  GEO_SIZE_IMPLAUSIBLE:
+    priority: 2
+    instructions: |
+      Adjust scale to realistic furniture dimensions:
+      - Chair seat: ~45cm height
+      - Table: ~75cm height
+      - Sofa: ~45cm seat height, ~180cm length
+  ALIGN_LOW_SCORE:
+    priority: 3
+    instructions: |
+      Improve match to description:
+      - Match specified style (modern, traditional, etc.)
+      - Match specified material appearance
+      - Match specified color/finish

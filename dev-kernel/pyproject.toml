@@ -1,0 +1,108 @@
+[project]
+name = "dev-kernel"
+version = "0.1.0"
+description = "Autonomous multi-agent development orchestrator using Beads + Workcells"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Connor", email = "connor@example.com" }]
+keywords = ["ai", "agents", "orchestration", "development", "automation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Build Tools",
+]
+
+dependencies = [
+    "click>=8.1.0",
+    "pydantic>=2.0.0",
+    "rich>=13.0.0",
+    "structlog>=24.0.0",
+    "aiofiles>=24.0.0",
+    "gitpython>=3.1.0",
+    "jsonschema>=4.20.0",
+    "pyyaml>=6.0.0",
+    "httpx>=0.27.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.3.0",
+    "mypy>=1.9.0",
+    "pre-commit>=3.6.0",
+]
+
+fab = [
+    # Core ML dependencies for critics
+    "torch>=2.0.0",
+    "open-clip-torch>=2.24.0",
+    "Pillow>=10.0.0",
+    # Mesh analysis
+    "trimesh>=4.0.0",
+    "numpy>=1.24.0",
+    "scipy>=1.11.0",
+]
+
+fab-cpu = [
+    # CPU-only torch for deterministic inference
+    "torch>=2.0.0",
+    "open-clip-torch>=2.24.0",
+    "Pillow>=10.0.0",
+    "trimesh>=4.0.0",
+    "numpy>=1.24.0",
+    "scipy>=1.11.0",
+]
+
+[project.scripts]
+dev-kernel = "dev_kernel.cli:main"
+workcell = "dev_kernel.workcell.cli:main"
+fab-gate = "dev_kernel.fab.gate:main"
+fab-render = "dev_kernel.fab.render:main"
+fab-godot = "dev_kernel.fab.godot:main"
+fab-critics = "dev_kernel.fab.critics.cli:main"
+fab-regression = "dev_kernel.fab.regression:main"
+fab-scaffold = "dev_kernel.fab.scaffolds.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/dev_kernel"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["src/dev_kernel"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]

@@ -1,0 +1,25 @@
+{
+  "atlas": {
+    "width": 16384,
+    "height": 6144
+  },
+  "frame": {
+    "width": 2048,
+    "height": 1024
+  },
+  "grid": {
+    "columns": 8,
+    "rows": 6
+  },
+  "animation": {
+    "total_frames": 48,
+    "fps": 24,
+    "duration_seconds": 2.0,
+    "loop": true
+  },
+  "usage": {
+    "uv_step_x": 0.125,
+    "uv_step_y": 0.16666666666666666,
+    "note": "Frames are arranged left-to-right, top-to-bottom"
+  }
+}

@@ -1,0 +1,203 @@
+# Fab Realism Gate Configuration
+# Category: Car
+# Version: v001
+# Created: 2024-12-17
+
+gate_config_id: car_realism_v001
+category: car
+version: "1.0.0"
+
+# Scene and camera references
+lookdev_scene_id: car_lookdev_v001
+camera_rig_id: car_camrig_v001
+
+# Render settings (determinism-first)
+render:
+  engine: CYCLES
+  device: CPU
+  resolution: [768, 512]
+  samples: 128
+  seed: 1337
+  denoise: false
+  film:
+    transparent: false
+  output:
+    format: PNG
+    color_depth: 16
+    color_mode: RGBA
+  threads: 4 # Pin for determinism
+
+# Views configuration
+views:
+  fixed:
+    - front_3q
+    - rear_3q
+    - side_left
+    - front
+    - top
+    - close_wheel_front
+  turntable:
+    enabled: true
+    frames: 12
+    axis: Z
+    start_angle_deg: 0
+
+# Critics configuration
+critics:
+  category:
+    enabled: true
+    detector_model: yolov8n
+    clip_model: ViT-L/14
+    min_views_passing: 10
+    per_view_car_conf_min: 0.60
+    clip_margin_min: 0.08
+    require_clay_agreement: true
+
+  alignment:
+    enabled: true
+    clip_model: ViT-L/14
+    margin_min: 0.08
+    use_attribute_probes: true
+
+  realism:
+    enabled: true
+    aesthetic_min: 0.55
+    niqe_max: 6.0
+    magenta_threshold: 0.001
+    noise_threshold: 0.1
+    clipping_threshold: 0.05
+
+  geometry:
+    enabled: true
+    bounds_m:
+      length: [3.0, 6.0]
+      width: [1.4, 2.5]
+      height: [1.0, 2.5]
+    triangle_count: [5000, 500000]
+    symmetry_min: 0.70
+    wheel_clusters_min: 3
+    non_manifold_max_ratio: 0.05
+    normals_consistency_min: 0.95
+
+# Gate decision parameters
+decision:
+  weights:
+    category: 0.35
+    alignment: 0.20
+    realism: 0.20
+    geometry: 0.25
+  overall_pass_min: 0.75
+  subscore_floors:
+    category: 0.70
+    geometry: 0.60
+    alignment: 0.50
+    realism: 0.40
+
+# Iteration settings
+iteration:
+  max_iterations: 5
+  vote_pack_on_uncertainty: true
+  uncertainty_band: 0.03
+
+  escalation:
+    on_repeated_hard_fail: true
+    repeated_threshold: 2
+    on_import_crash: true
+
+  template_fallback:
+    enabled: true
+    suggest_after_iterations: 2
+    default_template: car_sedan_template_v001
+
+# Hard fail codes (immediate rejection)
+hard_fail_codes:
+  - IMPORT_FILE_NOT_FOUND
+  - IMPORT_INVALID_GLTF
+  - BLENDER_CRASH
+  - RENDER_TIMEOUT
+  - RENDER_OOM
+  - MESH_INVALID
+  - CAT_NO_CAR_DETECTED
+  - GEO_SCALE_IMPLAUSIBLE
+  - GEO_TRI_COUNT_TRIVIAL
+  - MAT_MISSING_TEXTURES
+
+# Repair playbook mappings
+repair_playbook:
+  CAT_NO_CAR_DETECTED:
+    priority: 1
+    instructions: |
+      The asset is not recognized as a car in multiple views.
+
+      Steps to fix:
+      1. Verify the model has a recognizable car silhouette
+      2. Ensure 4 wheels are visible and positioned correctly
+      3. Check that scale matches real car (3-6m length)
+      4. Render a clay preview to verify geometry reads as car
+
+  GEO_SCALE_IMPLAUSIBLE:
+    priority: 1
+    instructions: |
+      Asset dimensions are outside plausible car range.
+
+      Expected ranges:
+      - Length: 3.0-6.0 meters
+      - Width: 1.4-2.5 meters
+      - Height: 1.0-2.5 meters
+
+      Steps to fix:
+      1. Check current dimensions in Blender (N panel)
+      2. Apply scale transforms (Ctrl+A → Scale)
+      3. Resize to match realistic car proportions
+
+  GEO_WHEEL_COUNT_LOW:
+    priority: 2
+    instructions: |
+      Fewer than expected wheel-like regions detected.
+
+      Steps to fix:
+      1. Model or instantiate 4 distinct wheel objects
+      2. Position wheels at corners of vehicle chassis
+      3. Ensure wheels make contact near z=0 (ground)
+      4. Wheels should be roughly cylindrical (~0.3-0.4m radius)
+
+  GEO_ASYMMETRIC:
+    priority: 2
+    instructions: |
+      Low bilateral symmetry detected.
+
+      Steps to fix:
+      1. Use Mirror modifier for symmetric parts
+      2. Delete one half and mirror if needed
+      3. Check for accidental asymmetric modifications
+
+  ALIGN_MARGIN_LOW:
+    priority: 3
+    instructions: |
+      Asset doesn't match the prompt description well.
+
+      Review the original prompt and check:
+      1. Color matches description
+      2. Style/era matches (modern, retro, etc.)
+      3. Body type matches (sedan, SUV, sports car)
+
+  REAL_LOW_AESTHETIC:
+    priority: 3
+    instructions: |
+      Visual quality/realism score is below threshold.
+
+      Improvements to consider:
+      1. Add material imperfections (scratches, wear)
+      2. Use realistic roughness values
+      3. Add proper clearcoat for car paint
+      4. Check normal maps are applied correctly
+
+  MAT_MISSING_TEXTURES:
+    priority: 2
+    instructions: |
+      Texture files are not properly linked/packed.
+
+      Steps to fix:
+      1. In Blender: File → External Data → Pack Resources
+      2. When exporting glTF: Enable "Include: Images"
+      3. Avoid absolute file paths in materials

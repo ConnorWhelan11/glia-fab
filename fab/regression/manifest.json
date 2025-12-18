@@ -1,0 +1,61 @@
+{
+  "schema_version": "1.0",
+  "created_at": "2025-12-18T00:00:00Z",
+  "updated_at": "2025-12-18T00:00:00Z",
+  "gate_config_id": "car_realism_v001",
+  "description": "Fab regression dataset for gate calibration and testing",
+  "categories": {
+    "car": {
+      "gate_config": "fab/gates/car_realism_v001.yaml",
+      "good_count": 0,
+      "bad_count": 0
+    },
+    "furniture": {
+      "gate_config": "fab/gates/furniture_realism_v001.yaml",
+      "good_count": 0,
+      "bad_count": 0
+    },
+    "architecture": {
+      "gate_config": "fab/gates/architecture_realism_v001.yaml",
+      "good_count": 0,
+      "bad_count": 0
+    }
+  },
+  "assets": [
+    {
+      "id": "simple_car_001",
+      "path": "../test_assets/simple_car.glb",
+      "category": "car",
+      "expected_verdict": "fail",
+      "expected_fail_codes": ["GEO_TRI_COUNT_TRIVIAL", "GEO_WHEEL_COUNT_LOW"],
+      "notes": "Simple test asset - intentionally minimal for testing pipeline",
+      "added": "2025-12-18",
+      "source": "generated"
+    }
+  ],
+  "calibration": {
+    "last_run": null,
+    "thresholds": {
+      "category": {
+        "current": 0.7,
+        "calibrated": null
+      },
+      "alignment": {
+        "current": 0.6,
+        "calibrated": null
+      },
+      "realism": {
+        "current": 0.55,
+        "calibrated": null
+      },
+      "geometry": {
+        "current": 0.6,
+        "calibrated": null
+      },
+      "overall": {
+        "current": 0.75,
+        "calibrated": null
+      }
+    }
+  }
+}

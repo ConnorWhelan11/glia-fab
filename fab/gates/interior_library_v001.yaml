@@ -1,0 +1,166 @@
+# Interior Library / Study Space Realism Gate Configuration v001
+# Category: interior_architecture (libraries, reading rooms, study halls)
+# Tuned for: Outora Mega Library cathedral-scale spaces
+
+gate_config_id: interior_library_v001
+category: interior_architecture
+schema_version: "1.0"
+
+# Scene references
+lookdev_scene_id: interior_lookdev_v001
+camera_rig_id: interior_camrig_v001
+
+# Render settings
+render:
+  engine: CYCLES
+  device: CPU
+  resolution: [1024, 768]
+  samples: 128
+  seed: 1337
+  denoise: false
+  film_transparent: false
+  ground_plane_size: 50.0 # Large interior spaces
+
+# Critics configuration
+critics:
+  # Category correctness - interior/library recognition
+  category:
+    enabled: true
+    min_views_passing: 6
+    per_view_conf_min: 0.45 # Interiors harder to classify
+    require_clay_agreement: true
+    target_classes:
+      - library
+      - interior
+      - reading_room
+      - hall
+      - cathedral
+      - room
+      - building_interior
+    excluded_classes:
+      - blob
+      - abstract
+      - vehicle
+      - exterior
+      - landscape
+
+  # Prompt alignment
+  alignment:
+    enabled: true
+    clip_model: "ViT-L/14"
+    margin_min: 0.04 # Interior descriptions can be subtle
+    views_to_evaluate: 8
+
+  # Visual quality
+  realism:
+    enabled: true
+    aesthetic_min: 0.50 # Libraries should feel atmospheric
+    niqe_max: 7.0
+    artifact_checks:
+      noise_threshold: 0.15
+      missing_texture_threshold: 0.05 # Stricter - visible materials matter
+      edge_density_min: 0.008 # Lots of detail expected
+
+  # Geometry - interior/library specific
+  geometry:
+    enabled: true
+    bounds_m:
+      # Large interior spaces
+      length: [10.0, 300.0]
+      width: [10.0, 300.0]
+      height: [3.0, 50.0] # Cathedral heights
+    triangle_count: [10000, 5000000] # Complex scenes
+    symmetry_min: 0.40 # Libraries often symmetric
+    manifold_tolerance: 0.25 # Instanced geometry can have gaps
+    # Interior-specific
+    ground_contact: true
+    floor_coverage_min: 0.3 # Floor should be mostly covered
+    ceiling_detected: true # Interiors need ceilings
+    vertical_elements: true # Columns, shelves, walls
+
+# Decision logic - tuned for complex scenes
+decision:
+  weights:
+    category: 0.20 # Lower - interiors hard to classify
+    alignment: 0.25
+    realism: 0.30 # Atmosphere matters
+    geometry: 0.25
+  overall_pass_min: 0.60 # Slightly relaxed
+  subscore_floors:
+    category: 0.40
+    geometry: 0.45
+    realism: 0.50 # Must look good
+
+# Hard fail codes
+hard_fail_codes:
+  - IMPORT_FAILED
+  - MESH_EMPTY
+  - SCALE_INVALID
+  - GEO_NO_FLOOR
+  - GEO_NO_CEILING
+  - REAL_MISSING_TEXTURES_SEVERE
+
+# Iteration settings
+iteration:
+  max_iterations: 3 # Complex scenes - fewer iterations
+  vote_pack_on_uncertainty: true
+  uncertainty_band: 0.06
+  template_fallback:
+    enabled: false # No standard library template yet
+
+# Repair playbook
+repair_playbook:
+  GEO_NO_FLOOR:
+    priority: 1
+    instructions: |
+      Add a floor plane to the interior:
+      - Ground plane at z=0
+      - Cover the footprint of the space
+      - Apply appropriate floor material (stone, wood)
+  GEO_NO_CEILING:
+    priority: 2
+    instructions: |
+      Add ceiling/roof structure:
+      - Vaulted ceiling for cathedral style
+      - Or flat ceiling with beams
+      - Consider oculus/skylight for light shafts
+  GEO_SCALE_TOO_SMALL:
+    priority: 1
+    instructions: |
+      Scale up to realistic interior dimensions:
+      - Minimum 3m ceiling height
+      - Door frames ~2m reference
+      - Human scale: desks ~0.75m, chairs ~0.45m seat
+  REAL_MISSING_TEXTURES_SEVERE:
+    priority: 1
+    instructions: |
+      Apply materials to visible surfaces:
+      - Stone/marble for structural elements
+      - Wood for furniture and trim
+      - Glass for windows (emissive for stained glass)
+  CAT_NOT_INTERIOR:
+    priority: 2
+    instructions: |
+      Add recognizable interior elements:
+      - Enclosed space with walls
+      - Furniture (desks, chairs, shelves)
+      - Lighting fixtures
+      - Floor and ceiling visible
+
+# Library-specific validation (custom checks)
+library_checks:
+  furniture_presence:
+    enabled: true
+    required_types:
+      - desk
+      - chair
+      - shelf
+    min_furniture_count: 5
+  structural_rhythm:
+    enabled: true
+    column_spacing_tolerance: 0.3 # 30% variance from bay rhythm
+    expected_bay_size: 6.0 # meters
+  lighting_quality:
+    enabled: true
+    min_light_sources: 2
+    ambient_occlusion: true

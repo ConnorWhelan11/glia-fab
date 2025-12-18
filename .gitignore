@@ -1,0 +1,118 @@
+###############################################################################
+# OS / Editor
+###############################################################################
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+.idea/
+*.swp
+*.swo
+*.bak
+*.tmp
+
+###############################################################################
+# Python
+###############################################################################
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Packaging / build
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Testing / linting
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage/
+htmlcov/
+
+# Hatch / Poetry / Pipenv
+.hatch/
+.poetry/
+Pipfile.lock
+
+###############################################################################
+# Node / TypeScript
+###############################################################################
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build output
+dist/
+build/
+.out/
+.next/
+.turbo/
+storybook-static/
+
+# Cache
+.cache/
+.eslintcache
+.vite/
+
+###############################################################################
+# Bun (if used)
+###############################################################################
+.bun/
+bun.lockb
+
+###############################################################################
+# Godot (4.x)
+###############################################################################
+.godot/
+.import/
+.export/
+*.translation
+*.tmp
+
+# Godot editor config
+.editorconfig
+.override.cfg
+
+# Exported builds
+bin/
+exports/
+
+###############################################################################
+# Blender
+###############################################################################
+# Blender autosaves & backups
+*.blend1
+*.blend2
+*.blend3
+*.blend4
+*.blend@
+
+# Blender cache
+__pycache__/
+cache/
+textures/cache/
+
+# Renders / outputs
+renders/
+output/
+tmp/
+
+#########################

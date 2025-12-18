@@ -1,0 +1,242 @@
+# Fab Realism Gate CI Workflow
+# Runs the full asset verification pipeline in a containerized environment
+
+name: Fab Realism Gate
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "fab/**"
+      - "dev-kernel/src/dev_kernel/fab/**"
+      - ".github/workflows/fab-gate.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "fab/**"
+      - "dev-kernel/src/dev_kernel/fab/**"
+  workflow_dispatch:
+    inputs:
+      asset_path:
+        description: "Path to asset file (GLB/BLEND)"
+        required: false
+        default: "fab/test_assets/simple_car.glb"
+      category:
+        description: "Asset category"
+        required: false
+        default: "car"
+        type: choice
+        options:
+          - car
+          - furniture
+          - architecture
+      dry_run:
+        description: "Dry run (no actual rendering)"
+        required: false
+        default: true
+        type: boolean
+
+env:
+  PYTHON_VERSION: "3.11"
+  BLENDER_VERSION: "5.0.1"
+
+jobs:
+  # Job 1: Run unit tests for fab module
+  test-fab-module:
+    name: Test Fab Module
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dev-kernel
+        working-directory: dev-kernel
+        run: |
+          pip install -e ".[dev,fab]"
+
+      - name: Run Fab tests
+        working-directory: dev-kernel
+        run: |
+          python -m pytest tests/fab/ -v --tb=short
+
+  # Job 2: Validate gate configs
+  validate-configs:
+    name: Validate Gate Configs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: pip install pyyaml jsonschema
+
+      - name: Validate YAML configs
+        run: |
+          python -c "
+          import yaml
+          from pathlib import Path
+
+          configs = list(Path('fab/gates').glob('*.yaml'))
+          print(f'Validating {len(configs)} gate configs...')
+
+          for config_path in configs:
+              try:
+                  with open(config_path) as f:
+                      config = yaml.safe_load(f)
+                  assert 'gate_config_id' in config
+                  assert 'category' in config
+                  print(f'  ✓ {config_path.name}')
+              except Exception as e:
+                  print(f'  ✗ {config_path.name}: {e}')
+                  exit(1)
+
+          print('All configs valid!')
+          "
+
+      - name: Validate JSON schemas
+        run: |
+          python -c "
+          import json
+          from pathlib import Path
+
+          schemas = list(Path('dev-kernel/schemas/fab').glob('*.json'))
+          print(f'Validating {len(schemas)} JSON schemas...')
+
+          for schema_path in schemas:
+              try:
+                  with open(schema_path) as f:
+                      schema = json.load(f)
+                  assert '\$schema' in schema or 'type' in schema
+                  print(f'  ✓ {schema_path.name}')
+              except Exception as e:
+                  print(f'  ✗ {schema_path.name}: {e}')
+                  exit(1)
+
+          print('All schemas valid!')
+          "
+
+  # Job 3: Build Blender container
+  build-blender-container:
+    name: Build Blender Container
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: fab-blender
+          tags: |
+            type=raw,value=${{ env.BLENDER_VERSION }}
+            type=sha
+
+      - name: Build container
+        uses: docker/build-push-action@v5
+        with:
+          context: fab/ci
+          file: fab/ci/Dockerfile.blender
+          push: false
+          load: true
+          tags: fab-blender:${{ env.BLENDER_VERSION }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify Blender
+        run: |
+          docker run --rm fab-blender:${{ env.BLENDER_VERSION }} blender --version
+
+  # Job 4: Run gate (dry-run or full)
+  run-gate:
+    name: Run Fab Gate
+    runs-on: ubuntu-latest
+    needs: [test-fab-module, validate-configs]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dev-kernel
+        working-directory: dev-kernel
+        run: |
+          pip install -e ".[dev,fab]"
+
+      - name: Create output directory
+        run: mkdir -p /tmp/fab-gate-output
+
+      - name: Run gate (dry-run)
+        if: ${{ github.event.inputs.dry_run == 'true' || github.event.inputs.dry_run == '' }}
+        working-directory: dev-kernel
+        run: |
+          python -m dev_kernel.fab.gate \
+            --asset ${{ github.event.inputs.asset_path || 'fab/test_assets/simple_car.glb' }} \
+            --config ../fab/gates/${{ github.event.inputs.category || 'car' }}_realism_v001.yaml \
+            --output /tmp/fab-gate-output \
+            --dry-run
+
+      - name: Upload gate artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: fab-gate-output
+          path: /tmp/fab-gate-output/
+          retention-days: 7
+
+      - name: Display verdict
+        run: |
+          if [ -f /tmp/fab-gate-output/verdict/gate_verdict.json ]; then
+            echo "=== Gate Verdict ==="
+            cat /tmp/fab-gate-output/verdict/gate_verdict.json | python -m json.tool
+          else
+            echo "No verdict file found (expected for dry-run)"
+          fi
+
+  # Job 5: Regression check (on main/develop only)
+  regression-check:
+    name: Regression Check
+    runs-on: ubuntu-latest
+    needs: [run-gate]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        working-directory: dev-kernel
+        run: pip install -e ".[dev,fab]"
+
+      - name: Run regression tests
+        working-directory: dev-kernel
+        run: |
+          python -c "
+          from pathlib import Path
+          import json
+
+          # Check for regression dataset
+          regression_dir = Path('../fab/regression')
+          if not regression_dir.exists():
+              print('No regression dataset found, skipping...')
+              exit(0)
+
+          # Would run full regression here
+          print('Regression check passed (placeholder)')
+          "

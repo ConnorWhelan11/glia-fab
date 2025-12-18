@@ -1,0 +1,258 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "fab.schema.critic_report.v1",
+  "title": "Fab Critic Report",
+  "description": "Aggregated output from all critics evaluating an asset",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "asset_id",
+    "gate_config_id",
+    "models",
+    "views",
+    "scores",
+    "failures"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Schema version identifier"
+    },
+    "run_id": {
+      "type": "string",
+      "description": "Unique run identifier"
+    },
+    "asset_id": {
+      "type": "string",
+      "description": "Unique asset identifier"
+    },
+    "gate_config_id": {
+      "type": "string",
+      "description": "Gate configuration used for evaluation",
+      "examples": ["car_realism_v001"]
+    },
+    "determinism": {
+      "type": "object",
+      "description": "Determinism configuration for reproducibility",
+      "additionalProperties": false,
+      "required": ["cpu_only", "seeds", "framework_versions"],
+      "properties": {
+        "cpu_only": {
+          "type": "boolean",
+          "description": "Whether CPU-only inference was used"
+        },
+        "seeds": {
+          "type": "object",
+          "description": "Random seeds used",
+          "additionalProperties": false,
+          "required": ["global_seed"],
+          "properties": {
+            "global_seed": {
+              "type": "integer",
+              "description": "Global random seed"
+            },
+            "numpy_seed": { "type": "integer" },
+            "torch_seed": { "type": "integer" }
+          }
+        },
+        "framework_versions": {
+          "type": "object",
+          "description": "Framework versions for reproducibility",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "models": {
+      "type": "array",
+      "description": "ML models used in evaluation",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "version", "weights_sha256"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Model name",
+            "examples": ["yolov8n", "ViT-L/14"]
+          },
+          "version": {
+            "type": "string",
+            "description": "Model version"
+          },
+          "weights_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "description": "SHA256 hash of model weights"
+          },
+          "purpose": {
+            "type": "string",
+            "description": "What the model is used for",
+            "examples": ["object_detection", "clip_embeddings"]
+          }
+        }
+      }
+    },
+    "views": {
+      "type": "array",
+      "description": "Per-view evaluation results",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["view_id", "mode", "image_path", "per_critic"],
+        "properties": {
+          "view_id": {
+            "type": "string",
+            "description": "View identifier",
+            "examples": ["front_3q", "turntable_f05"]
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["beauty", "clay"],
+            "description": "Render mode"
+          },
+          "image_path": {
+            "type": "string",
+            "description": "Path to rendered image"
+          },
+          "per_critic": {
+            "type": "object",
+            "description": "Results from each critic for this view",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["score", "fail_codes"],
+              "properties": {
+                "score": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "description": "Normalized score [0, 1]"
+                },
+                "fail_codes": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "description": "Failure codes for this view"
+                },
+                "metrics": {
+                  "type": "object",
+                  "description": "Detailed metrics from critic",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "geometry_analysis": {
+      "type": "object",
+      "description": "Geometry critic results (not per-view)",
+      "additionalProperties": false,
+      "properties": {
+        "bounds_m": {
+          "type": "object",
+          "properties": {
+            "length": { "type": "number" },
+            "width": { "type": "number" },
+            "height": { "type": "number" }
+          }
+        },
+        "triangle_count": { "type": "integer" },
+        "vertex_count": { "type": "integer" },
+        "component_count": { "type": "integer" },
+        "symmetry_score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "wheel_candidates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "center": { "type": "array", "items": { "type": "number" } },
+              "radius_estimate": { "type": "number" },
+              "ground_contact": { "type": "number" }
+            }
+          }
+        },
+        "manifold_stats": {
+          "type": "object",
+          "properties": {
+            "non_manifold_edge_ratio": { "type": "number" },
+            "normals_consistency": { "type": "number" }
+          }
+        }
+      }
+    },
+    "scores": {
+      "type": "object",
+      "description": "Aggregated scores by critic",
+      "additionalProperties": false,
+      "required": ["category", "alignment", "realism", "geometry", "overall"],
+      "properties": {
+        "category": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Category correctness score"
+        },
+        "alignment": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Prompt alignment score"
+        },
+        "realism": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Realism/quality score"
+        },
+        "geometry": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Geometry sanity score"
+        },
+        "overall": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Weighted overall score"
+        }
+      }
+    },
+    "failures": {
+      "type": "object",
+      "description": "Categorized failure codes",
+      "additionalProperties": false,
+      "required": ["hard", "soft"],
+      "properties": {
+        "hard": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Hard failure codes (immediate rejection)"
+        },
+        "soft": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Soft failure codes (score-based)"
+        }
+      }
+    },
+    "timing": {
+      "type": "object",
+      "description": "Timing information",
+      "properties": {
+        "started_at": { "type": "string", "format": "date-time" },
+        "completed_at": { "type": "string", "format": "date-time" },
+        "duration_ms": { "type": "integer" },
+        "per_critic_ms": {
+          "type": "object",
+          "additionalProperties": { "type": "integer" }
+        }
+      }
+    }
+  }
+}
+

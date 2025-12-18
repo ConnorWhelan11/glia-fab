@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Outora Library - Hyper-Realistic 3D Viewer</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "SF Pro Display", -apple-system, BlinkMacSystemFont,
+          sans-serif;
+        background: #0a0a0f;
+        color: #e8e6e3;
+        overflow: hidden;
+      }
+
+      #container {
+        width: 100vw;
+        height: 100vh;
+        position: relative;
+      }
+
+      #canvas-container {
+        width: 100%;
+        height: 100%;
+      }
+
+      .ui-panel {
+        position: absolute;
+        background: rgba(10, 10, 15, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 16px;
+        backdrop-filter: blur(30px);
+        padding: 20px;
+        z-index: 100;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      }
+
+      #header {
+        top: 20px;
+        left: 20px;
+        right: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 15px 25px;
+      }
+
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .logo-icon {
+        width: 44px;
+        height: 44px;
+        background: linear-gradient(135deg, #d4a574, #8b6914);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 22px;
+        box-shadow: 0 4px 12px rgba(212, 165, 116, 0.3);
+      }
+
+      .logo-text {
+        font-size: 1.5rem;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        background: linear-gradient(135deg, #fff, #d4a574);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .logo-subtitle {
+        font-size: 0.7rem;
+        color: #666;
+        text-transform: uppercase;
+        letter-spacing: 0.15em;
+      }
+
+      #controls {
+        bottom: 20px;
+        left: 20px;
+        width: 340px;
+      }
+
+      .control-section {
+        margin-bottom: 24px;
+      }
+
+      .control-section:last-child {
+        margin-bottom: 0;
+      }
+
+      .section-title {
+        font-size: 0.65rem;
+        text-transform: uppercase;
+        letter-spacing: 0.2em;
+        color: #d4a574;
+        margin-bottom: 14px;
+        font-weight: 600;
+      }
+
+      .model-buttons {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+      }
+
+      .model-btn {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 10px;
+        padding: 12px 14px;
+        color: #e8e6e3;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-align: left;
+      }
+
+      .model-btn:hover {
+        background: rgba(212, 165, 116, 0.15);
+        border-color: rgba(212, 165, 116, 0.4);
+        transform: translateY(-1px);
+      }
+
+      .model-btn.active {
+        background: linear-gradient(
+          135deg,
+          rgba(212, 165, 116, 0.2),
+          rgba(139, 105, 20, 0.2)
+        );
+        border-color: #d4a574;
+        box-shadow: 0 0 20px rgba(212, 165, 116, 0.2);
+      }
+
+      .model-btn .size {
+        font-size: 0.65rem;
+        color: #666;
+        margin-top: 3px;
+      }
+
+      .slider-control {
+        margin-bottom: 16px;
+      }
+
+      .slider-label {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.8rem;
+        margin-bottom: 8px;
+      }
+
+      .slider-value {
+        color: #d4a574;
+        font-weight: 500;
+        font-family: "SF Mono", monospace;
+      }
+
+      input[type="range"] {
+        width: 100%;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 2px;
+        outline: none;
+        -webkit-appearance: none;
+      }
+
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 18px;
+        height: 18px;
+        background: linear-gradient(135deg, #d4a574, #8b6914);
+        border-radius: 50%;
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(212, 165, 116, 0.4);
+        transition: transform 0.2s;
+      }
+
+      input[type="range"]::-webkit-slider-thumb:hover {
+        transform: scale(1.1);
+      }
+
+      .toggle-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+      }
+
+      .toggle-label {
+        font-size: 0.8rem;
+      }
+
+      .toggle {
+        width: 44px;
+        height: 24px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        cursor: pointer;
+        position: relative;
+        transition: background 0.3s;
+      }
+
+      .toggle.active {
+        background: linear-gradient(135deg, #d4a574, #8b6914);
+      }
+
+      .toggle::after {
+        content: "";
+        position: absolute;
+        width: 18px;
+        height: 18px;
+        background: white;
+        border-radius: 50%;
+        top: 3px;
+        left: 3px;
+        transition: transform 0.3s;
+      }
+
+      .toggle.active::after {
+        transform: translateX(20px);
+      }
+
+      #info {
+        bottom: 20px;
+        right: 20px;
+        width: 260px;
+        font-size: 0.8rem;
+      }
+
+      .info-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      }
+
+      .info-row:last-child {
+        border-bottom: none;
+      }
+
+      .info-label {
+        color: #666;
+      }
+
+      .info-value {
+        color: #e8e6e3;
+        font-weight: 500;
+        font-family: "SF Mono", monospace;
+      }
+
+      #loading {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        z-index: 200;
+      }
+
+      .spinner {
+        width: 60px;
+        height: 60px;
+        border: 3px solid rgba(212, 165, 116, 0.1);
+        border-top-color: #d4a574;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 20px;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      #loading-text {
+        font-size: 0.9rem;
+        color: #888;
+      }
+
+      #loading-progress {
+        width: 220px;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 2px;
+        margin-top: 15px;
+        overflow: hidden;
+      }
+
+      #loading-bar {
+        height: 100%;
+        background: linear-gradient(90deg, #d4a574, #8b6914);
+        width: 0%;
+        transition: width 0.3s;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      #help {
+        padding: 12px 18px;
+        font-size: 0.75rem;
+        color: #666;
+      }
+
+      /* Preview / Play mode */
+      #mode-toggle {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .mode-btn {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 10px;
+        padding: 10px 14px;
+        color: #e8e6e3;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+
+      .mode-btn:hover {
+        background: rgba(212, 165, 116, 0.15);
+        border-color: rgba(212, 165, 116, 0.4);
+        transform: translateY(-1px);
+      }
+
+      .mode-btn.active {
+        background: linear-gradient(
+          135deg,
+          rgba(212, 165, 116, 0.2),
+          rgba(139, 105, 20, 0.2)
+        );
+        border-color: #d4a574;
+        box-shadow: 0 0 20px rgba(212, 165, 116, 0.2);
+      }
+
+      .mode-btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      #game-overlay {
+        position: absolute;
+        inset: 0;
+        z-index: 50;
+        background: #050508;
+      }
+
+      #game-iframe {
+        width: 100%;
+        height: 100%;
+        border: 0;
+        display: block;
+      }
+
+      #game-error {
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+        max-width: 520px;
+      }
+
+      body.play-mode #controls,
+      body.play-mode #info,
+      body.play-mode .quality-badge,
+      body.play-mode #help {
+        display: none !important;
+      }
+
+      .key {
+        display: inline-block;
+        background: rgba(212, 165, 116, 0.15);
+        color: #d4a574;
+        padding: 3px 8px;
+        border-radius: 4px;
+        margin-right: 6px;
+        font-family: "SF Mono", monospace;
+        font-size: 0.7rem;
+      }
+
+      /* Quality badge */
+      .quality-badge {
+        position: absolute;
+        top: 100px;
+        right: 20px;
+        background: linear-gradient(
+          135deg,
+          rgba(212, 165, 116, 0.2),
+          rgba(139, 105, 20, 0.1)
+        );
+        border: 1px solid rgba(212, 165, 116, 0.3);
+        border-radius: 20px;
+        padding: 8px 16px;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: #d4a574;
+      }
+    </style>
+  </head>
+	  <body>
+	    <div id="container">
+	      <div id="canvas-container"></div>
+	      <div id="game-overlay" class="hidden">
+	        <iframe
+	          id="game-iframe"
+	          title="Godot Game"
+	          allow="fullscreen; gamepad; autoplay"
+	        ></iframe>
+	        <div id="game-error" class="ui-panel hidden"></div>
+	      </div>
+
+	      <div id="header" class="ui-panel">
+	        <div class="logo">
+	          <div class="logo-icon">📚</div>
+          <div>
+            <div class="logo-text">Outora Library</div>
+            <div class="logo-subtitle">Hyper-Realistic Viewer</div>
+          </div>
+        </div>
+	        <div id="help">
+	          <span class="key">LMB</span> Rotate <span class="key">RMB</span> Pan
+	          <span class="key">Scroll</span> Zoom
+	        </div>
+	        <div id="mode-toggle">
+	          <button class="mode-btn active" id="mode-preview">Preview</button>
+	          <button class="mode-btn" id="mode-play" disabled>Play</button>
+	        </div>
+	      </div>
+
+      <div class="quality-badge" id="quality-badge">Ultra Quality</div>
+
+      <div id="controls" class="ui-panel">
+        <div class="control-section">
+          <div class="section-title">Models</div>
+          <div class="model-buttons" id="model-list"></div>
+        </div>
+
+        <div class="control-section">
+          <div class="section-title">Lighting</div>
+          <div class="slider-control">
+            <div class="slider-label">
+              <span>Environment</span>
+              <span class="slider-value" id="env-value">0.3</span>
+            </div>
+            <input
+              type="range"
+              id="env-slider"
+              min="0"
+              max="3"
+              step="0.1"
+              value="0.3"
+            />
+          </div>
+          <div class="slider-control">
+            <div class="slider-label">
+              <span>Sun Intensity</span>
+              <span class="slider-value" id="sun-value">1.0</span>
+            </div>
+            <input
+              type="range"
+              id="sun-slider"
+              min="0"
+              max="5"
+              step="0.1"
+              value="1.0"
+            />
+          </div>
+          <div class="slider-control">
+            <div class="slider-label">
+              <span>Shadow Softness</span>
+              <span class="slider-value" id="shadow-value">2.0</span>
+            </div>
+            <input
+              type="range"
+              id="shadow-slider"
+              min="0"
+              max="5"
+              step="0.1"
+              value="2.0"
+            />
+          </div>
+        </div>
+
+        <div class="control-section">
+          <div class="section-title">Post Processing</div>
+          <div class="toggle-row">
+            <span class="toggle-label">Ambient Occlusion</span>
+            <div class="toggle active" id="ao-toggle"></div>
+          </div>
+          <div class="toggle-row">
+            <span class="toggle-label">Bloom</span>
+            <div class="toggle active" id="bloom-toggle"></div>
+          </div>
+          <div class="toggle-row">
+            <span class="toggle-label">Tone Mapping</span>
+            <div class="toggle active" id="tonemap-toggle"></div>
+          </div>
+          <div class="slider-control" style="margin-top: 12px">
+            <div class="slider-label">
+              <span>Exposure</span>
+              <span class="slider-value" id="exposure-value">0.8</span>
+            </div>
+            <input
+              type="range"
+              id="exposure-slider"
+              min="0.2"
+              max="3"
+              step="0.05"
+              value="0.8"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div id="info" class="ui-panel">
+        <div class="section-title">Scene Info</div>
+        <div class="info-row">
+          <span class="info-label">Model</span>
+          <span class="info-value" id="info-model">-</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Triangles</span>
+          <span class="info-value" id="info-triangles">-</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Materials</span>
+          <span class="info-value" id="info-materials">-</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">FPS</span>
+          <span class="info-value" id="info-fps">-</span>
+        </div>
+      </div>
+
+      <div id="loading">
+        <div class="spinner"></div>
+        <div id="loading-text">Loading model...</div>
+        <div id="loading-progress">
+          <div id="loading-bar"></div>
+        </div>
+      </div>
+    </div>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+      }
+    </script>
+
+    <script type="module">
+      import * as THREE from "three";
+      import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+      import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+      import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
+      import { RGBELoader } from "three/addons/loaders/RGBELoader.js";
+      import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+      import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+      import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+      import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+      import { SSAOPass } from "three/addons/postprocessing/SSAOPass.js";
+
+	      // Models
+	      const MODELS = [
+	        {
+	          id: "gothic_library_full",
+	          name: "🏛️ Gothic Library (Full)",
+	          path: "./assets/exports/gothic_library_full.glb",
+	          gamePath: "./assets/games/gothic_library_full/index.html",
+	          size: "0.13 MB",
+	        },
+	        {
+	          id: "gothic_crossing",
+	          name: "✨ Gothic Crossing",
+	          path: "./assets/exports/gothic_crossing.glb",
+	          gamePath: "./assets/games/gothic_crossing/index.html",
+	          size: "0.05 MB",
+	        },
+	      ];
+
+      // Scene
+      const container = document.getElementById("canvas-container");
+      const scene = new THREE.Scene();
+
+      // Warm library background gradient
+      scene.background = new THREE.Color(0x0d0a08);
+      scene.fog = new THREE.FogExp2(0x0d0a08, 0.003); // Reduced fog for larger scene
+
+      // Camera - positioned for Gothic crossing view
+      const camera = new THREE.PerspectiveCamera(
+        60,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        1000
+      );
+      camera.position.set(30, 20, 30); // Higher and further for cathedral scale
+
+      // Renderer - High quality settings
+      const renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        powerPreference: "high-performance",
+      });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 0.8; // Reduced for darker interior
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.physicallyCorrectLights = true;
+      container.appendChild(renderer.domElement);
+
+      // Controls - adjusted for cathedral scale
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.minDistance = 5;
+      controls.maxDistance = 200;
+      controls.target.set(0, 8, 0); // Target at crossing height
+      controls.maxPolarAngle = Math.PI * 0.85;
+
+      // ============================================
+      // LIGHTING - Warm library atmosphere
+      // ============================================
+
+      // Hemisphere light (sky/ground) - reduced for interior
+      const hemiLight = new THREE.HemisphereLight(0xffeedd, 0x080808, 0.3);
+      scene.add(hemiLight);
+
+      // Main sun light (warm golden hour through clerestory)
+      const sunLight = new THREE.DirectionalLight(0xffeaa7, 1.0);
+      sunLight.position.set(40, 60, 30);
+      sunLight.castShadow = true;
+      sunLight.shadow.mapSize.width = 4096;
+      sunLight.shadow.mapSize.height = 4096;
+      sunLight.shadow.camera.near = 1;
+      sunLight.shadow.camera.far = 200;
+      sunLight.shadow.camera.left = -80;
+      sunLight.shadow.camera.right = 80;
+      sunLight.shadow.camera.top = 80;
+      sunLight.shadow.camera.bottom = -80;
+      sunLight.shadow.bias = -0.0001;
+      sunLight.shadow.radius = 3;
+      scene.add(sunLight);
+
+      // Fill light (cooler, from opposite side)
+      const fillLight = new THREE.DirectionalLight(0xb4c6d4, 0.4);
+      fillLight.position.set(-15, 20, -10);
+      scene.add(fillLight);
+
+      // Warm rim light
+      const rimLight = new THREE.DirectionalLight(0xffaa55, 0.6);
+      rimLight.position.set(-10, 5, 20);
+      scene.add(rimLight);
+
+      // Ambient point lights for interior warmth
+      const warmLightPositions = [
+        [0, 8, 0],
+        [-8, 6, -8],
+        [8, 6, -8],
+        [-8, 6, 8],
+        [8, 6, 8],
+      ];
+
+      const pointLights = [];
+      warmLightPositions.forEach((pos, i) => {
+        const light = new THREE.PointLight(0xffcc88, 0.8, 25, 2);
+        light.position.set(...pos);
+        light.castShadow = i === 0;
+        if (light.castShadow) {
+          light.shadow.mapSize.width = 1024;
+          light.shadow.mapSize.height = 1024;
+        }
+        scene.add(light);
+        pointLights.push(light);
+      });
+
+      // Ground plane with realistic material
+      const groundGeometry = new THREE.PlaneGeometry(200, 200);
+      const groundMaterial = new THREE.MeshStandardMaterial({
+        color: 0x1a1512,
+        roughness: 0.95,
+        metalness: 0.0,
+      });
+      const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+      ground.rotation.x = -Math.PI / 2;
+      ground.position.y = -0.01;
+      ground.receiveShadow = true;
+      scene.add(ground);
+
+      // ============================================
+      // POST-PROCESSING
+      // ============================================
+
+      const composer = new EffectComposer(renderer);
+
+      // Render pass
+      const renderPass = new RenderPass(scene, camera);
+      composer.addPass(renderPass);
+
+      // SSAO (Ambient Occlusion)
+      const ssaoPass = new SSAOPass(
+        scene,
+        camera,
+        window.innerWidth,
+        window.innerHeight
+      );
+      ssaoPass.kernelRadius = 16;
+      ssaoPass.minDistance = 0.005;
+      ssaoPass.maxDistance = 0.1;
+      composer.addPass(ssaoPass);
+
+      // Bloom for warm glow
+      const bloomPass = new UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.3, // strength
+        0.4, // radius
+        0.85 // threshold
+      );
+      composer.addPass(bloomPass);
+
+      // Output pass
+      const outputPass = new OutputPass();
+      composer.addPass(outputPass);
+
+      // ============================================
+      // ENVIRONMENT MAP
+      // ============================================
+
+      // Create procedural environment for reflections
+      const pmremGenerator = new THREE.PMREMGenerator(renderer);
+      pmremGenerator.compileEquirectangularShader();
+
+      // Create a warm interior environment
+      const envScene = new THREE.Scene();
+      const envGeometry = new THREE.SphereGeometry(100, 32, 32);
+      const envMaterial = new THREE.MeshBasicMaterial({
+        side: THREE.BackSide,
+        color: 0x1a1510,
+      });
+
+      // Add gradient to environment
+      const envMesh = new THREE.Mesh(envGeometry, envMaterial);
+      envScene.add(envMesh);
+
+      // Warm lights in environment
+      const envLight = new THREE.PointLight(0xffcc88, 1, 200);
+      envLight.position.set(0, 50, 0);
+      envScene.add(envLight);
+
+      const envTexture = pmremGenerator.fromScene(envScene).texture;
+      scene.environment = envTexture;
+
+      // ============================================
+      // LOADER
+      // ============================================
+
+      const dracoLoader = new DRACOLoader();
+      dracoLoader.setDecoderPath(
+        "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/libs/draco/"
+      );
+
+      const gltfLoader = new GLTFLoader();
+      gltfLoader.setDRACOLoader(dracoLoader);
+
+	      let currentModel = null;
+	      let currentModelMeta = null;
+	      let isPlayMode = false;
+	      let gameAvailable = false;
+	      let frameCount = 0;
+	      let lastTime = performance.now();
+
+	      const modePreviewBtn = document.getElementById("mode-preview");
+	      const modePlayBtn = document.getElementById("mode-play");
+	      const gameOverlay = document.getElementById("game-overlay");
+	      const gameIframe = document.getElementById("game-iframe");
+	      const gameError = document.getElementById("game-error");
+
+	      function showGameError(message) {
+	        gameError.textContent = message;
+	        gameError.classList.remove("hidden");
+	      }
+
+	      function clearGameError() {
+	        gameError.textContent = "";
+	        gameError.classList.add("hidden");
+	      }
+
+	      async function checkGameExists(path) {
+	        if (!path) return false;
+	        if (location.protocol === "file:") return false;
+	        try {
+	          const head = await fetch(path, { method: "HEAD", cache: "no-store" });
+	          if (head.ok) return true;
+	        } catch (e) {}
+	        try {
+	          const get = await fetch(path, { method: "GET", cache: "no-store" });
+	          return get.ok;
+	        } catch (e) {
+	          return false;
+	        }
+	      }
+
+	      async function updatePlayButton() {
+	        if (!currentModelMeta || !currentModelMeta.gamePath) {
+	          gameAvailable = false;
+	          modePlayBtn.disabled = true;
+	          modePlayBtn.title = "No game export configured for this asset";
+	          return;
+	        }
+
+	        if (location.protocol === "file:") {
+	          gameAvailable = false;
+	          modePlayBtn.disabled = true;
+	          modePlayBtn.title = "Serve viewer over HTTP to enable Play mode";
+	          return;
+	        }
+
+	        modePlayBtn.disabled = true;
+	        modePlayBtn.title = "Checking game export…";
+	        gameAvailable = await checkGameExists(currentModelMeta.gamePath);
+	        modePlayBtn.disabled = !gameAvailable;
+	        modePlayBtn.title = gameAvailable
+	          ? "Play Godot export"
+	          : "No game export found (run fab-godot)";
+	      }
+
+	      function setMode(mode) {
+	        isPlayMode = mode === "play";
+	        document.body.classList.toggle("play-mode", isPlayMode);
+
+	        modePreviewBtn.classList.toggle("active", !isPlayMode);
+	        modePlayBtn.classList.toggle("active", isPlayMode);
+
+	        if (!isPlayMode) {
+	          gameOverlay.classList.add("hidden");
+	          gameIframe.src = "about:blank";
+	          clearGameError();
+	          return;
+	        }
+
+	        if (!currentModelMeta) {
+	          showGameError("Select a model before entering Play mode.");
+	          gameOverlay.classList.remove("hidden");
+	          gameIframe.src = "about:blank";
+	          return;
+	        }
+
+	        if (location.protocol === "file:") {
+	          showGameError("Play mode requires serving this folder over HTTP (see viewer/README.md).");
+	          gameOverlay.classList.remove("hidden");
+	          gameIframe.src = "about:blank";
+	          return;
+	        }
+
+	        if (!gameAvailable) {
+	          showGameError(
+	            `No game export found at ${currentModelMeta.gamePath}. Run fab-godot to generate it.`
+	          );
+	          gameOverlay.classList.remove("hidden");
+	          gameIframe.src = "about:blank";
+	          return;
+	        }
+
+	        clearGameError();
+	        gameIframe.src = currentModelMeta.gamePath;
+	        gameOverlay.classList.remove("hidden");
+	      }
+
+	      modePreviewBtn.addEventListener("click", () => setMode("preview"));
+	      modePlayBtn.addEventListener("click", () => setMode("play"));
+
+	      function loadModel(index) {
+	        const model = MODELS[index];
+	        currentModelMeta = model;
+	        updatePlayButton();
+	        if (isPlayMode) {
+	          setMode("preview");
+	        }
+	        const loading = document.getElementById("loading");
+	        const loadingText = document.getElementById("loading-text");
+	        const loadingBar = document.getElementById("loading-bar");
+
+        loading.classList.remove("hidden");
+        loadingText.textContent = `Loading ${model.name}...`;
+        loadingBar.style.width = "0%";
+
+        // Remove current model
+        if (currentModel) {
+          scene.remove(currentModel);
+          currentModel.traverse((child) => {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) {
+              if (Array.isArray(child.material)) {
+                child.material.forEach((m) => m.dispose());
+              } else {
+                child.material.dispose();
+              }
+            }
+          });
+        }
+
+        gltfLoader.load(
+          model.path,
+          (gltf) => {
+            currentModel = gltf.scene;
+
+            // Process materials for realism
+            currentModel.traverse((child) => {
+              if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+
+                // Enhance materials
+                if (child.material) {
+                  const mat = child.material;
+
+                  // Make materials more physically accurate
+                  if (mat.isMeshStandardMaterial) {
+                    mat.envMapIntensity = 0.8;
+                    mat.needsUpdate = true;
+                  }
+
+                  // Detect and enhance specific material types
+                  const name = (mat.name || "").toLowerCase();
+
+                  if (name.includes("wood") || name.includes("desk")) {
+                    mat.roughness = Math.max(mat.roughness, 0.6);
+                    mat.metalness = 0;
+                  } else if (name.includes("metal") || name.includes("brass")) {
+                    mat.metalness = Math.min(mat.metalness + 0.3, 1.0);
+                    mat.roughness = Math.max(0.2, mat.roughness);
+                  } else if (
+                    name.includes("stone") ||
+                    name.includes("concrete")
+                  ) {
+                    mat.roughness = 0.85;
+                    mat.metalness = 0;
+                  } else if (name.includes("glass")) {
+                    mat.transparent = true;
+                    mat.opacity = 0.3;
+                    mat.metalness = 0.9;
+                    mat.roughness = 0.1;
+                  }
+                }
+              }
+            });
+
+            // Center model
+            const box = new THREE.Box3().setFromObject(currentModel);
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
+
+            currentModel.position.sub(center);
+            currentModel.position.y += size.y / 2;
+
+            scene.add(currentModel);
+
+            // Fit camera
+            const maxDim = Math.max(size.x, size.y, size.z);
+            const distance = maxDim * 1.8;
+            camera.position.set(distance * 0.7, distance * 0.5, distance * 0.7);
+            controls.target.set(0, size.y * 0.4, 0);
+            controls.update();
+
+            // Update point light positions based on model size
+            pointLights.forEach((light, i) => {
+              const spread = maxDim * 0.4;
+              const height = size.y * 0.6;
+              if (i === 0) {
+                light.position.set(0, height, 0);
+              } else {
+                const angle = ((i - 1) / 4) * Math.PI * 2;
+                light.position.set(
+                  Math.cos(angle) * spread,
+                  height,
+                  Math.sin(angle) * spread
+                );
+              }
+            });
+
+            updateInfo(model.name, gltf.scene);
+            loading.classList.add("hidden");
+          },
+          (progress) => {
+            if (progress.total > 0) {
+              const percent = (progress.loaded / progress.total) * 100;
+              loadingBar.style.width = `${percent}%`;
+            }
+          },
+          (error) => {
+            console.error("Error loading model:", error);
+            loadingText.textContent = `Error loading ${model.name}`;
+          }
+        );
+
+        document.querySelectorAll(".model-btn").forEach((btn, i) => {
+          btn.classList.toggle("active", i === index);
+        });
+      }
+
+      function updateInfo(name, object) {
+        let triangles = 0;
+        let materials = new Set();
+
+        object.traverse((child) => {
+          if (child.isMesh) {
+            if (child.geometry.index) {
+              triangles += child.geometry.index.count / 3;
+            } else if (child.geometry.attributes.position) {
+              triangles += child.geometry.attributes.position.count / 3;
+            }
+            if (child.material) {
+              if (Array.isArray(child.material)) {
+                child.material.forEach((m) => materials.add(m.uuid));
+              } else {
+                materials.add(child.material.uuid);
+              }
+            }
+          }
+        });
+
+        document.getElementById("info-model").textContent = name;
+        document.getElementById("info-triangles").textContent =
+          Math.round(triangles).toLocaleString();
+        document.getElementById("info-materials").textContent = materials.size;
+      }
+
+      // Build UI
+      const modelList = document.getElementById("model-list");
+      MODELS.forEach((model, index) => {
+        const btn = document.createElement("button");
+        btn.className = "model-btn";
+        btn.innerHTML = `<div>${model.name}</div><div class="size">${model.size}</div>`;
+        btn.onclick = () => loadModel(index);
+        modelList.appendChild(btn);
+      });
+
+      // Controls
+      document.getElementById("env-slider").addEventListener("input", (e) => {
+        const value = parseFloat(e.target.value);
+        scene.environment.intensity = value;
+        document.getElementById("env-value").textContent = value.toFixed(1);
+      });
+
+      document.getElementById("sun-slider").addEventListener("input", (e) => {
+        const value = parseFloat(e.target.value);
+        sunLight.intensity = value;
+        document.getElementById("sun-value").textContent = value.toFixed(1);
+      });
+
+      document
+        .getElementById("shadow-slider")
+        .addEventListener("input", (e) => {
+          const value = parseFloat(e.target.value);
+          sunLight.shadow.radius = value;
+          document.getElementById("shadow-value").textContent =
+            value.toFixed(1);
+        });
+
+      document
+        .getElementById("exposure-slider")
+        .addEventListener("input", (e) => {
+          const value = parseFloat(e.target.value);
+          renderer.toneMappingExposure = value;
+          document.getElementById("exposure-value").textContent =
+            value.toFixed(2);
+        });
+
+      // Toggles
+      document
+        .getElementById("ao-toggle")
+        .addEventListener("click", function () {
+          this.classList.toggle("active");
+          ssaoPass.enabled = this.classList.contains("active");
+        });
+
+      document
+        .getElementById("bloom-toggle")
+        .addEventListener("click", function () {
+          this.classList.toggle("active");
+          bloomPass.enabled = this.classList.contains("active");
+        });
+
+      document
+        .getElementById("tonemap-toggle")
+        .addEventListener("click", function () {
+          this.classList.toggle("active");
+          renderer.toneMapping = this.classList.contains("active")
+            ? THREE.ACESFilmicToneMapping
+            : THREE.NoToneMapping;
+        });
+
+      // Resize
+      window.addEventListener("resize", () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        composer.setSize(window.innerWidth, window.innerHeight);
+        ssaoPass.setSize(window.innerWidth, window.innerHeight);
+      });
+
+	      // Animation loop
+	      function animate() {
+	        requestAnimationFrame(animate);
+	        if (isPlayMode) {
+	          return;
+	        }
+	        controls.update();
+
+	        // Use composer for post-processing
+	        composer.render();
+
+        // FPS counter
+        frameCount++;
+        const now = performance.now();
+        if (now - lastTime >= 1000) {
+          document.getElementById("info-fps").textContent = frameCount;
+          frameCount = 0;
+          lastTime = now;
+        }
+      }
+
+      animate();
+      document.getElementById("loading").classList.add("hidden");
+    </script>
+  </body>
+</html>

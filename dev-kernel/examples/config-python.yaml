@@ -1,0 +1,65 @@
+# Dev Kernel Configuration for Python Projects
+
+version: "1.0"
+
+scheduling:
+  max_concurrent_workcells: 4
+  max_concurrent_tokens: 500000
+
+toolchains:
+  codex:
+    enabled: true
+    default_model: "o3"
+    timeout_minutes: 30
+
+  claude:
+    enabled: true
+    timeout_minutes: 45
+
+quality_gates:
+  required:
+    - name: test
+      command: "pytest -v"
+      timeout: 300
+      retries: 2
+
+    - name: typecheck
+      command: "mypy ."
+      timeout: 120
+      retries: 1
+
+    - name: lint
+      command: "ruff check ."
+      timeout: 60
+      retries: 1
+
+    - name: format-check
+      command: "ruff format --check ."
+      timeout: 30
+
+  optional:
+    - name: coverage
+      command: "pytest --cov=src --cov-fail-under=80"
+      
+    - name: security
+      command: "bandit -r src/"
+
+  custom:
+    - name: forbidden-paths
+      type: diff-check
+      forbidden:
+        - "*.env*"
+        - "**/secrets/**"
+        - "alembic/versions/**"
+
+security:
+  forbidden_paths:
+    - ".env*"
+    - "**/secrets/**"
+    - ".git/**"
+    - "alembic/versions/**"
+
+observability:
+  log_level: "info"
+  beads_viewer_integration: true
+

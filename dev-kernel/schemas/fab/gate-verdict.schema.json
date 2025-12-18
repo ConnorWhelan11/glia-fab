@@ -1,0 +1,192 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "fab.schema.gate_verdict.v1",
+  "title": "Fab Gate Verdict",
+  "description": "Final gate decision with scores, failures, and next actions",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "asset_id",
+    "gate_config_id",
+    "verdict",
+    "scores",
+    "failures",
+    "next_actions"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Schema version identifier"
+    },
+    "run_id": {
+      "type": "string",
+      "description": "Unique run identifier"
+    },
+    "asset_id": {
+      "type": "string",
+      "description": "Unique asset identifier"
+    },
+    "gate_config_id": {
+      "type": "string",
+      "description": "Gate configuration used",
+      "examples": ["car_realism_v001"]
+    },
+    "iteration_index": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Current iteration in repair loop"
+    },
+    "verdict": {
+      "type": "string",
+      "enum": ["pass", "fail", "escalate"],
+      "description": "Final gate decision"
+    },
+    "verdict_reason": {
+      "type": "string",
+      "description": "Human-readable explanation of verdict",
+      "examples": [
+        "All criteria met",
+        "Hard fail: no car detected",
+        "Max iterations exceeded"
+      ]
+    },
+    "scores": {
+      "type": "object",
+      "description": "Score summary",
+      "additionalProperties": false,
+      "required": ["overall", "by_critic"],
+      "properties": {
+        "overall": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Weighted overall score"
+        },
+        "by_critic": {
+          "type": "object",
+          "description": "Per-critic scores",
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "threshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Pass threshold used"
+        },
+        "margin": {
+          "type": "number",
+          "description": "Distance from threshold (positive = above)"
+        }
+      }
+    },
+    "failures": {
+      "type": "object",
+      "description": "Failure code categorization",
+      "additionalProperties": false,
+      "required": ["hard", "soft"],
+      "properties": {
+        "hard": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Hard failure codes"
+        },
+        "soft": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Soft failure codes"
+        }
+      }
+    },
+    "floor_violations": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Subscore floor violations"
+    },
+    "next_actions": {
+      "type": "array",
+      "description": "Prioritized next actions",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["action", "priority", "instructions"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "repair",
+              "rerender_vote_pack",
+              "fallback_to_template",
+              "human_review"
+            ],
+            "description": "Action type"
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5,
+            "description": "Action priority (1 = highest)"
+          },
+          "instructions": {
+            "type": "string",
+            "description": "Detailed instructions for action"
+          },
+          "fail_code": {
+            "type": "string",
+            "description": "Associated failure code"
+          },
+          "suggested_template_ref": {
+            "type": "string",
+            "description": "Template reference for fallback action"
+          }
+        }
+      }
+    },
+    "vote_pack": {
+      "type": "object",
+      "description": "Vote pack results if triggered",
+      "properties": {
+        "triggered": { "type": "boolean" },
+        "reason": { "type": "string" },
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "variant": { "type": "string" },
+              "verdict": { "type": "string" },
+              "score": { "type": "number" }
+            }
+          }
+        },
+        "aggregation_method": { "type": "string" }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "description": "Paths to related artifacts",
+      "properties": {
+        "critic_report_path": { "type": "string" },
+        "render_dir": { "type": "string" },
+        "asset_proof_path": { "type": "string" },
+        "manifest_path": { "type": "string" }
+      }
+    },
+    "timing": {
+      "type": "object",
+      "description": "Timing information",
+      "properties": {
+        "started_at": { "type": "string", "format": "date-time" },
+        "completed_at": { "type": "string", "format": "date-time" },
+        "duration_ms": { "type": "integer" }
+      }
+    }
+  }
+}
+

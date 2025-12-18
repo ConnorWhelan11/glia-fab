@@ -1,0 +1,99 @@
+{
+  "rig_id": "car_camrig_v001",
+  "version": "1.0.0",
+  "category": "car",
+  "created_at": "2024-12-17T00:00:00Z",
+
+  "normalization": {
+    "origin": "center_ground",
+    "up_axis": "Z",
+    "forward_axis": "-Y",
+    "distance_mode": "bbox_diagonal"
+  },
+
+  "fixed_cameras": [
+    {
+      "id": "front_3q",
+      "description": "Front three-quarter, eye height",
+      "type": "perspective",
+      "focal_length_mm": 50,
+      "sensor_width_mm": 36,
+      "azimuth_deg": 45,
+      "elevation_deg": 15,
+      "distance_factor": 2.5,
+      "look_at": [0, 0, 0.5]
+    },
+    {
+      "id": "rear_3q",
+      "description": "Rear three-quarter, eye height",
+      "type": "perspective",
+      "focal_length_mm": 50,
+      "sensor_width_mm": 36,
+      "azimuth_deg": 225,
+      "elevation_deg": 15,
+      "distance_factor": 2.5,
+      "look_at": [0, 0, 0.5]
+    },
+    {
+      "id": "side_left",
+      "description": "Profile view",
+      "type": "perspective",
+      "focal_length_mm": 50,
+      "sensor_width_mm": 36,
+      "azimuth_deg": 90,
+      "elevation_deg": 5,
+      "distance_factor": 2.8,
+      "look_at": [0, 0, 0.5]
+    },
+    {
+      "id": "front",
+      "description": "Direct front",
+      "type": "perspective",
+      "focal_length_mm": 50,
+      "sensor_width_mm": 36,
+      "azimuth_deg": 0,
+      "elevation_deg": 10,
+      "distance_factor": 2.5,
+      "look_at": [0, 0, 0.5]
+    },
+    {
+      "id": "top",
+      "description": "Top-down, slightly forward",
+      "type": "perspective",
+      "focal_length_mm": 35,
+      "sensor_width_mm": 36,
+      "azimuth_deg": 0,
+      "elevation_deg": 75,
+      "distance_factor": 3.0,
+      "look_at": [0, 0, 0]
+    },
+    {
+      "id": "close_wheel_front",
+      "description": "Macro-ish, front wheel detail",
+      "type": "perspective",
+      "focal_length_mm": 85,
+      "sensor_width_mm": 36,
+      "azimuth_deg": 60,
+      "elevation_deg": 10,
+      "distance_factor": 1.2,
+      "look_at_offset": [-0.8, 1.2, 0.3],
+      "notes": "Offset targets front-left wheel area"
+    }
+  ],
+
+  "turntable": {
+    "enabled": true,
+    "frames": 12,
+    "axis": "Z",
+    "start_angle_deg": 0,
+    "base_camera": "front_3q",
+    "notes": "Rotates object, camera stays fixed at front_3q position"
+  },
+
+  "render_modes": ["beauty", "clay"],
+
+  "output_naming": {
+    "fixed": "{mode}_{camera_id}.png",
+    "turntable": "{mode}_turntable_f{frame:02d}.png"
+  }
+}

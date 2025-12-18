@@ -1,0 +1,133 @@
+# Architecture/Building Realism Gate Configuration v001
+# Category: architecture (buildings, structures)
+
+gate_config_id: architecture_realism_v001
+category: architecture
+schema_version: "1.0"
+
+# Scene references
+lookdev_scene_id: architecture_lookdev_v001
+camera_rig_id: architecture_camrig_v001
+
+# Render settings (larger assets need different approach)
+render:
+  engine: CYCLES
+  device: CPU
+  resolution: [1024, 768]  # Higher resolution for detail
+  samples: 128
+  seed: 1337
+  denoise: false
+  film_transparent: false
+  # Architecture-specific: ground plane is larger
+  ground_plane_size: 100.0  # meters
+
+# Critics configuration
+critics:
+  # Category correctness
+  category:
+    enabled: true
+    min_views_passing: 6
+    per_view_conf_min: 0.50  # Buildings vary widely
+    require_clay_agreement: true
+    target_classes:
+      - building
+      - house
+      - skyscraper
+      - tower
+      - structure
+      - architecture
+    excluded_classes:
+      - blob
+      - abstract
+      - vehicle
+
+  # Prompt alignment
+  alignment:
+    enabled: true
+    clip_model: "ViT-L/14"
+    margin_min: 0.05  # Architectural descriptions complex
+    views_to_evaluate: 6
+
+  # Visual quality
+  realism:
+    enabled: true
+    aesthetic_min: 0.45  # Buildings can be utilitarian
+    niqe_max: 8.0  # Larger variance accepted
+    artifact_checks:
+      noise_threshold: 0.20
+      missing_texture_threshold: 0.08
+      edge_density_min: 0.005
+
+  # Geometry (architecture-specific)
+  geometry:
+    enabled: true
+    bounds_m:
+      # Buildings: 2m - 200m
+      length: [2.0, 200.0]
+      width: [2.0, 200.0]
+      height: [2.0, 500.0]  # Skyscrapers
+    triangle_count: [5000, 2000000]  # Complex geometry allowed
+    symmetry_min: 0.30  # Many buildings asymmetric
+    manifold_tolerance: 0.20  # Architecture can have more open geometry
+    # Architecture-specific
+    ground_contact: true
+    vertical_alignment: true  # Walls should be roughly vertical
+    window_detection: false  # Optional v2 feature
+
+# Decision logic
+decision:
+  weights:
+    category: 0.25
+    alignment: 0.25
+    realism: 0.25
+    geometry: 0.25
+  overall_pass_min: 0.65
+  subscore_floors:
+    category: 0.55
+    geometry: 0.50
+
+# Hard fail codes
+hard_fail_codes:
+  - IMPORT_FAILED
+  - MESH_EMPTY
+  - SCALE_INVALID
+  - CAT_NO_BUILDING_DETECTED
+  - GEO_FLOATING
+  - GEO_INVERTED  # Upside down building
+
+# Iteration settings
+iteration:
+  max_iterations: 4  # Fewer iterations - buildings are complex
+  vote_pack_on_uncertainty: true
+  uncertainty_band: 0.05
+
+# Repair playbook
+repair_playbook:
+  CAT_NO_BUILDING_DETECTED:
+    priority: 1
+    instructions: |
+      Add recognizable building features:
+      - Clear facade with windows/doors
+      - Roof structure
+      - Ground-level entry points
+      - Appropriate scale (at least 2m height)
+  GEO_FLOATING:
+    priority: 1
+    instructions: |
+      Ensure building touches ground:
+      - Foundation at z=0
+      - No gaps under walls
+  GEO_INVERTED:
+    priority: 1
+    instructions: |
+      Correct building orientation:
+      - Roof should be at top
+      - Foundation at bottom
+      - Walls roughly vertical
+  GEO_SCALE_TOO_SMALL:
+    priority: 2
+    instructions: |
+      Scale up to realistic building size:
+      - Minimum ~2-3m height for small structure
+      - Door height ~2m reference
+      - Window proportions realistic

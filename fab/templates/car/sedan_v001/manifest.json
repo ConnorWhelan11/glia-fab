@@ -1,0 +1,79 @@
+{
+  "schema_version": "1.0",
+  "template_id": "sedan_v001",
+  "category": "car",
+  "version": "1.0.0",
+  "created_at": "2024-12-18T00:00:00Z",
+  "updated_at": "2024-12-18T00:00:00Z",
+  "status": "placeholder",
+  
+  "description": "Standard 4-door sedan template with correct proportions and named parts",
+  
+  "files": {
+    "blend": "asset.blend",
+    "glb": "asset.glb",
+    "textures": null
+  },
+  
+  "checksums": {
+    "blend_sha256": null,
+    "glb_sha256": null
+  },
+  
+  "geometry": {
+    "bounds_m": {
+      "length": 4.5,
+      "width": 1.8,
+      "height": 1.4
+    },
+    "triangle_count": 45000,
+    "vertex_count": 22500,
+    "component_count": 5
+  },
+  
+  "parts": [
+    {"name": "Body", "type": "mesh", "required": true},
+    {"name": "Wheel_FL", "type": "mesh", "required": true},
+    {"name": "Wheel_FR", "type": "mesh", "required": true},
+    {"name": "Wheel_RL", "type": "mesh", "required": true},
+    {"name": "Wheel_RR", "type": "mesh", "required": true},
+    {"name": "Interior", "type": "mesh", "required": false},
+    {"name": "Glass", "type": "mesh", "required": false}
+  ],
+  
+  "materials": [
+    {"name": "CarPaint", "type": "principled", "slot": "Body"},
+    {"name": "Rubber", "type": "principled", "slot": "Wheel_*"},
+    {"name": "Glass", "type": "principled", "slot": "Glass"}
+  ],
+  
+  "constraints": {
+    "required_parts": ["Body", "Wheel_FL", "Wheel_FR", "Wheel_RL", "Wheel_RR"],
+    "scale_tolerance": 0.1,
+    "max_modification_ratio": 0.5,
+    "preserve_wheel_positions": true,
+    "allow_part_addition": true,
+    "allow_part_deletion": false
+  },
+  
+  "golden_test": {
+    "last_run": null,
+    "verdict": "pending",
+    "scores": {
+      "category": null,
+      "alignment": null,
+      "realism": null,
+      "geometry": null,
+      "overall": null
+    },
+    "renders_path": "golden/"
+  },
+  
+  "notes": [
+    "Placeholder template - actual asset.blend/glb not yet created",
+    "When creating: use standard Blender units (1 unit = 1 meter)",
+    "Origin should be at center-bottom of vehicle",
+    "Front of car facing +Y direction"
+  ]
+}
+

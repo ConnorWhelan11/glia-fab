@@ -1,0 +1,142 @@
+# Godot Engine Integration Gate v001
+#
+# Purpose:
+# - Validate that a Blender-exported GLB contains minimal gameplay metadata (spawn + colliders)
+# - Enforce basic complexity budgets (materials/draw-call estimate)
+# - (When Godot is available) import + export a deterministic Web build
+
+gate_config_id: godot_integration_v001
+category: engine_integration
+schema_version: "1.0"
+
+requirements:
+  require_spawn: true
+  spawn_names:
+    - SPAWN_PLAYER
+    - OL_SPAWN_PLAYER
+
+  require_colliders: true
+  collider_prefixes:
+    - COLLIDER_
+    - OL_COLLIDER_
+
+  trigger_prefixes:
+    - TRIGGER_
+    - OL_TRIGGER_
+
+  interact_prefixes:
+    - INTERACT_
+    - OL_INTERACT_
+
+budgets:
+  # Soft budgets; violations fail the gate in v001.
+  max_materials: 256
+  max_draw_calls_est: 8000
+  max_nodes: 100000
+
+godot:
+  export_preset: Web
+  # Where the harness copies the GLB inside the template project.
+  level_asset_relpath: assets/level.glb
+
+hard_fail_codes:
+  - GODOT_MISSING
+  - GODOT_IMPORT_FAILED
+  - GODOT_EXPORT_FAILED
+  - ASSET_PARSE_FAILED
+  - CONTRACT_NO_SPAWN
+  - CONTRACT_TOO_MANY_SPAWNS
+  - CONTRACT_NO_COLLIDERS
+  - BUDGET_TOO_MANY_MATERIALS
+  - BUDGET_TOO_MANY_DRAW_CALLS
+  - BUDGET_TOO_MANY_NODES
+
+repair_playbook:
+  GODOT_MISSING:
+    priority: 1
+    instructions: |
+      Install Godot 4 (headless-capable) on the machine running the kernel.
+
+      - macOS: put `Godot.app` in `/Applications/` so the harness can find it at:
+        `/Applications/Godot.app/Contents/MacOS/Godot`
+      - Or ensure `godot` is on `PATH`.
+
+  ASSET_PARSE_FAILED:
+    priority: 1
+    instructions: |
+      The exported `.glb` could not be parsed as glTF 2.0.
+
+      In Blender:
+      - Re-export as **glTF 2.0 Binary (.glb)**.
+      - Avoid non-ASCII / unusual characters in filenames.
+      - Apply transforms and remove invalid/empty objects.
+
+  CONTRACT_NO_SPAWN:
+    priority: 1
+    instructions: |
+      Add a player spawn marker:
+      - Create an Empty named `SPAWN_PLAYER` (or `SPAWN_PLAYER_*`).
+      - Place it at a sensible human height (≈ 1.6m above the floor).
+      - Ensure the Empty is included in the exported collection/selection.
+
+  CONTRACT_TOO_MANY_SPAWNS:
+    priority: 2
+    instructions: |
+      Multiple spawn markers were found.
+      - Keep exactly one `SPAWN_PLAYER` marker.
+      - Rename/remove any extra `SPAWN_PLAYER_*` empties.
+
+  CONTRACT_NO_COLLIDERS:
+    priority: 1
+    instructions: |
+      Add simplified collision meshes:
+      - Create low-poly meshes named `COLLIDER_*` (e.g. `COLLIDER_GROUND`, `COLLIDER_WALLS`).
+      - Use closed/clean geometry where possible (avoid tiny slivers / non-manifold).
+      - Keep colliders simple: boxes/planes/low-poly shells; no need for high detail.
+      - Ensure collider meshes are included in the export selection/collection.
+
+  BUDGET_TOO_MANY_MATERIALS:
+    priority: 2
+    instructions: |
+      Reduce unique materials:
+      - Merge materials that are visually identical.
+      - Prefer texture atlases for repeated props (books, trim, decals).
+      - Reuse shared materials across instanced/duplicated meshes.
+
+  BUDGET_TOO_MANY_DRAW_CALLS:
+    priority: 2
+    instructions: |
+      Reduce draw calls (proxy metric: mesh primitives × node references):
+      - Join meshes that share materials and don't need to be separate.
+      - Reduce sub-mesh splits (fewer material slots per mesh).
+      - Instance repeated geometry instead of duplicating unique meshes.
+      - Use simpler collider meshes; do not export unnecessary helper geometry.
+
+  BUDGET_TOO_MANY_NODES:
+    priority: 3
+    instructions: |
+      Reduce node count:
+      - Remove unused empties/helpers before export.
+      - Apply modifiers and collapse overly deep hierarchies where possible.
+      - Prefer instancing/collection instances to duplicating unique objects.
+
+  GODOT_IMPORT_FAILED:
+    priority: 1
+    instructions: |
+      Godot failed to import the GLB.
+
+      In Blender:
+      - Apply transforms (no negative scale).
+      - Ensure textures are embedded or paths are valid and portable.
+      - Remove unsupported data (non-mesh objects you don't need in export).
+      - Re-export as `.glb` and verify it loads in the Three.js viewer.
+
+  GODOT_EXPORT_FAILED:
+    priority: 1
+    instructions: |
+      Godot failed to export the Web build.
+
+      Check:
+      - The template project has a valid `export_presets.cfg` with a `Web` preset.
+      - Godot export templates are installed on the machine running the export.
+      - The level GLB is present at `assets/level.glb` inside the project.

@@ -1,0 +1,9 @@
+{"id": "1", "title": "Set up project structure", "status": "done", "created": "2025-01-15T10:00:00Z", "updated": "2025-01-15T12:00:00Z", "dk_priority": "P0", "dk_risk": "low", "dk_size": "S"}
+{"id": "2", "title": "Implement user authentication", "status": "ready", "created": "2025-01-15T10:30:00Z", "updated": "2025-01-16T09:00:00Z", "description": "Add JWT-based auth with refresh tokens", "dk_priority": "P1", "dk_risk": "high", "dk_size": "L", "dk_speculate": true, "context_files": ["src/auth/", "src/middleware/auth.ts"], "dk_forbidden_paths": ["src/auth/secrets.ts"]}
+{"id": "3", "title": "Create user dashboard", "status": "open", "created": "2025-01-15T11:00:00Z", "updated": "2025-01-15T11:00:00Z", "dk_priority": "P2", "dk_risk": "medium", "dk_size": "M", "dk_parent": "10"}
+{"id": "4", "title": "Add email notifications", "status": "open", "created": "2025-01-15T11:30:00Z", "updated": "2025-01-15T11:30:00Z", "dk_priority": "P3", "dk_risk": "low", "dk_size": "S"}
+{"id": "5", "title": "Fix login redirect bug", "status": "blocked", "created": "2025-01-16T08:00:00Z", "updated": "2025-01-16T10:00:00Z", "description": "After login, users are redirected to 404", "dk_priority": "P0", "dk_risk": "low", "dk_size": "XS", "dk_attempts": 2, "dk_max_attempts": 3}
+{"id": "6", "title": "Optimize database queries", "status": "ready", "created": "2025-01-16T09:00:00Z", "updated": "2025-01-16T09:00:00Z", "dk_priority": "P2", "dk_risk": "medium", "dk_size": "M", "dk_tool_hint": "claude"}
+{"id": "7", "title": "Security audit", "status": "escalated", "created": "2025-01-14T08:00:00Z", "updated": "2025-01-16T14:00:00Z", "dk_priority": "P0", "dk_risk": "critical", "dk_size": "XL", "dk_speculate": true, "dk_required_reviewers": 2}
+{"id": "10", "title": "Epic: User Experience Improvements", "status": "open", "created": "2025-01-14T10:00:00Z", "updated": "2025-01-14T10:00:00Z", "dk_priority": "P2", "dk_size": "XL", "tags": ["epic"]}
+

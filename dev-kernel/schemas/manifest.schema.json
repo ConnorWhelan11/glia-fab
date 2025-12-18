@@ -1,0 +1,119 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://dev-kernel/schemas/manifest.schema.json",
+  "title": "TaskManifest",
+  "description": "Input manifest for a workcell execution",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "workcell_id",
+    "issue",
+    "toolchain",
+    "quality_gates",
+    "branch_name"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0",
+      "description": "Schema version"
+    },
+    "workcell_id": {
+      "type": "string",
+      "pattern": "^wc-\\d+-\\d{8}T\\d{6}Z$",
+      "description": "Unique workcell identifier"
+    },
+    "issue": {
+      "type": "object",
+      "required": ["id", "title"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Beads issue ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Issue title"
+        },
+        "description": {
+          "type": "string",
+          "description": "Full issue description"
+        },
+        "acceptance_criteria": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of acceptance criteria"
+        },
+        "context_files": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Files to provide as context"
+        },
+        "forbidden_paths": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Paths that must not be modified"
+        }
+      }
+    },
+    "toolchain": {
+      "type": "string",
+      "enum": ["codex", "claude", "opencode", "crush"],
+      "description": "Toolchain to use for execution"
+    },
+    "toolchain_config": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string",
+          "description": "Model to use"
+        },
+        "approval_mode": {
+          "type": "string",
+          "enum": ["full-auto", "suggest", "ask"],
+          "description": "Approval mode for changes"
+        },
+        "timeout_minutes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 120,
+          "description": "Execution timeout in minutes"
+        }
+      }
+    },
+    "quality_gates": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "description": "Gate name to command mapping"
+      },
+      "description": "Quality gates to run"
+    },
+    "speculate_mode": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this is a speculative execution"
+    },
+    "speculate_tag": {
+      "type": "string",
+      "enum": ["speculate:primary", "speculate:alt1", "speculate:alt2"],
+      "description": "Speculate candidate tag"
+    },
+    "max_diff_lines": {
+      "type": "integer",
+      "default": 500,
+      "description": "Maximum allowed diff lines"
+    },
+    "max_diff_files": {
+      "type": "integer",
+      "default": 20,
+      "description": "Maximum allowed modified files"
+    },
+    "branch_name": {
+      "type": "string",
+      "pattern": "^wc/\\d+/\\d{8}T\\d{6}Z$",
+      "description": "Git branch name for the workcell"
+    }
+  }
+}
+

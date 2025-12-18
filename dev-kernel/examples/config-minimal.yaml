@@ -1,0 +1,14 @@
+# Minimal Dev Kernel Configuration
+# Only specify what differs from defaults
+
+version: "1.0"
+
+quality_gates:
+  required:
+    - name: test
+      command: "npm test"
+    - name: typecheck
+      command: "npm run typecheck"
+    - name: lint
+      command: "npm run lint"
+

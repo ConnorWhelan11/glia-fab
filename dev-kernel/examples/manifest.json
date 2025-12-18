@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0.0",
+  "workcell_id": "wc-42-20250115T143022Z",
+  "issue": {
+    "id": "42",
+    "title": "Implement user authentication endpoint",
+    "description": "Create POST /api/auth/login endpoint that:\n- Accepts email and password\n- Validates credentials against database\n- Returns JWT token on success\n- Returns 401 on failure",
+    "acceptance_criteria": [
+      "Returns JWT on valid credentials",
+      "Returns 401 on invalid credentials",
+      "Rate limits to 5 attempts per minute",
+      "Logs authentication attempts"
+    ],
+    "context_files": [
+      "src/api/routes.ts",
+      "src/auth/types.ts",
+      "src/db/users.ts"
+    ],
+    "forbidden_paths": [
+      "src/auth/secrets.ts",
+      "migrations/"
+    ]
+  },
+  "toolchain": "codex",
+  "toolchain_config": {
+    "model": "o3",
+    "approval_mode": "full-auto",
+    "timeout_minutes": 30
+  },
+  "quality_gates": {
+    "test": "npm test",
+    "lint": "npm run lint",
+    "typecheck": "npm run typecheck",
+    "build": "npm run build"
+  },
+  "speculate_mode": false,
+  "max_diff_lines": 500,
+  "max_diff_files": 20,
+  "branch_name": "wc/42/20250115T143022Z"
+}
+

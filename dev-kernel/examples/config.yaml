@@ -1,0 +1,145 @@
+# Dev Kernel Configuration Example
+# Copy to .dev-kernel/config.yaml and customize
+
+version: "1.0"
+
+# ============================================
+# SCHEDULING
+# ============================================
+scheduling:
+  max_concurrent_workcells: 4
+  max_concurrent_tokens: 500000
+  scheduling_interval_seconds: 30
+  starvation_threshold_hours: 4
+
+# ============================================
+# TOOLCHAINS
+# ============================================
+toolchains:
+  codex:
+    enabled: true
+    path: "codex"
+    default_model: "o3"
+    timeout_minutes: 30
+    config:
+      approval_mode: "full-auto"
+
+  claude:
+    enabled: true
+    path: "claude"
+    timeout_minutes: 45
+    config:
+      output_format: "json"
+      allowed_tools: ["Edit", "Write", "Bash", "Read"]
+
+  opencode:
+    enabled: true
+    path: "opencode"
+    timeout_minutes: 30
+    config:
+      non_interactive: true
+
+  crush:
+    enabled: false
+    path: "crush"
+    timeout_minutes: 25
+
+# ============================================
+# ROUTING
+# ============================================
+routing:
+  rules:
+    - match: { dk_tool_hint: "codex" }
+      use: codex
+
+    - match: { dk_tool_hint: "claude" }
+      use: claude
+
+    - match:
+        dk_risk: ["high", "critical"]
+      speculate: true
+      use: [codex, claude]
+
+    - match: {}
+      use: codex
+
+  fallbacks:
+    codex: [claude, opencode]
+    claude: [codex, opencode]
+
+# ============================================
+# QUALITY GATES
+# ============================================
+quality_gates:
+  required:
+    - name: test
+      command: "npm test"
+      timeout: 300
+      retries: 2
+
+    - name: typecheck
+      command: "npm run typecheck"
+      timeout: 120
+      retries: 1
+
+    - name: lint
+      command: "npm run lint"
+      timeout: 60
+      retries: 1
+
+    - name: build
+      command: "npm run build"
+      timeout: 180
+      retries: 1
+
+  custom:
+    - name: forbidden-paths
+      type: diff-check
+      forbidden:
+        - "*.env*"
+        - "**/secrets/**"
+
+    - name: max-diff-size
+      type: diff-check
+      max_lines: 500
+      max_files: 20
+
+# ============================================
+# SPECULATION
+# ============================================
+speculation:
+  enabled: true
+  default_parallelism: 2
+  max_parallelism: 3
+  vote_threshold: 0.7
+
+# ============================================
+# RETRY & FAILURE
+# ============================================
+retry:
+  max_attempts: 3
+  backoff_base_seconds: 60
+
+failure_handling:
+  auto_create_fix_issues: true
+
+# ============================================
+# SECURITY
+# ============================================
+security:
+  forbidden_paths:
+    - ".env*"
+    - "**/secrets/**"
+    - ".git/**"
+  max_diff_lines: 500
+  max_diff_files: 20
+
+# ============================================
+# OBSERVABILITY
+# ============================================
+observability:
+  log_level: "info"
+  event_log_dir: ".dev-kernel/logs"
+  archive_dir: ".dev-kernel/archives"
+  beads_viewer_integration: true
+

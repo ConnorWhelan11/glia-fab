@@ -1,0 +1,182 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "fab.schema.asset_proof.v1",
+  "title": "Fab Asset Proof",
+  "description": "Blender workcell output containing asset metadata and export proof",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "asset_id",
+    "category",
+    "files",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Schema version identifier"
+    },
+    "run_id": {
+      "type": "string",
+      "description": "Unique run identifier",
+      "pattern": "^run_[0-9T]+Z_[a-f0-9]+$"
+    },
+    "asset_id": {
+      "type": "string",
+      "description": "Unique asset identifier"
+    },
+    "category": {
+      "type": "string",
+      "description": "Asset category (e.g., car, furniture)",
+      "examples": ["car", "furniture", "architecture"]
+    },
+    "source": {
+      "type": "object",
+      "description": "Source information about asset creation",
+      "additionalProperties": false,
+      "required": ["agent_id", "timestamp_utc"],
+      "properties": {
+        "agent_id": {
+          "type": "string",
+          "description": "Identifier of the agent that created the asset"
+        },
+        "timestamp_utc": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp in UTC"
+        },
+        "template_ref": {
+          "type": "string",
+          "description": "Reference to template used (if any)"
+        },
+        "scaffold_ref": {
+          "type": "string",
+          "description": "Reference to scaffold used (if any)"
+        },
+        "prompt": {
+          "type": "string",
+          "description": "Generation prompt"
+        },
+        "iteration_index": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Iteration number in repair loop"
+        }
+      }
+    },
+    "files": {
+      "type": "object",
+      "description": "Paths to asset files",
+      "additionalProperties": false,
+      "required": ["blend_path", "glb_path", "manifest_sha256"],
+      "properties": {
+        "blend_path": {
+          "type": "string",
+          "description": "Path to .blend source file"
+        },
+        "glb_path": {
+          "type": "string",
+          "description": "Path to exported .glb file"
+        },
+        "textures_dir": {
+          "type": "string",
+          "description": "Path to textures directory (if external)"
+        },
+        "manifest_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA256 hash of asset manifest"
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Asset metadata from Blender export",
+      "additionalProperties": false,
+      "required": [
+        "blender_version",
+        "exporter",
+        "geometry_stats",
+        "material_stats"
+      ],
+      "properties": {
+        "blender_version": {
+          "type": "string",
+          "description": "Blender version used for export",
+          "examples": ["4.1.0", "4.0.2"]
+        },
+        "exporter": {
+          "type": "object",
+          "description": "Export settings",
+          "additionalProperties": false,
+          "required": ["format", "settings_hash"],
+          "properties": {
+            "format": {
+              "type": "string",
+              "enum": ["glb", "gltf"],
+              "description": "Export format"
+            },
+            "settings_hash": {
+              "type": "string",
+              "description": "Hash of export settings for reproducibility"
+            }
+          }
+        },
+        "geometry_stats": {
+          "type": "object",
+          "description": "Geometry statistics",
+          "additionalProperties": false,
+          "required": ["triangle_count", "vertex_count", "bounds_m"],
+          "properties": {
+            "triangle_count": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Total triangle count"
+            },
+            "vertex_count": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Total vertex count"
+            },
+            "bounds_m": {
+              "type": "object",
+              "description": "Bounding box dimensions in meters",
+              "additionalProperties": false,
+              "required": ["x", "y", "z"],
+              "properties": {
+                "x": { "type": "number", "description": "Width (X axis)" },
+                "y": { "type": "number", "description": "Length (Y axis)" },
+                "z": { "type": "number", "description": "Height (Z axis)" }
+              }
+            }
+          }
+        },
+        "material_stats": {
+          "type": "object",
+          "description": "Material statistics",
+          "additionalProperties": false,
+          "required": ["material_count", "uses_textures"],
+          "properties": {
+            "material_count": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of materials"
+            },
+            "uses_textures": {
+              "type": "boolean",
+              "description": "Whether asset uses texture maps"
+            },
+            "texture_count": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of texture images"
+            }
+          }
+        }
+      }
+    }
+  }
+}

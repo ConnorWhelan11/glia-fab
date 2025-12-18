@@ -1,0 +1,69 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://dev-kernel/schemas/event.schema.json",
+  "title": "KernelEvent",
+  "description": "Event emitted by the kernel for observability",
+  "type": "object",
+  "required": ["event_id", "timestamp", "type", "data"],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique event identifier"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the event occurred"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "kernel_start",
+        "kernel_stop",
+        "schedule_cycle",
+        "workcell_spawn",
+        "workcell_complete",
+        "workcell_fail",
+        "gate_pass",
+        "gate_fail",
+        "vote_start",
+        "vote_complete",
+        "merge",
+        "issue_create",
+        "issue_update",
+        "escalation",
+        "error"
+      ],
+      "description": "Event type"
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Event-specific data"
+    },
+    "context": {
+      "type": "object",
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "description": "Kernel run identifier"
+        },
+        "issue_id": {
+          "type": "string",
+          "description": "Related issue ID"
+        },
+        "workcell_id": {
+          "type": "string",
+          "description": "Related workcell ID"
+        },
+        "toolchain": {
+          "type": "string",
+          "description": "Toolchain in use"
+        }
+      },
+      "description": "Event context"
+    }
+  }
+}
+
