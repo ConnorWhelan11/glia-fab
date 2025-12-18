@@ -77,6 +77,7 @@ export default function App() {
   const terminalRef = useRef<HTMLDivElement | null>(null);
   const xtermRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
+  const activeSessionIdRef = useRef<string | null>(null);
 
   const activeProject = useMemo(
     () => projects.find((p) => p.root === activeProjectRoot) ?? null,
@@ -87,6 +88,10 @@ export default function App() {
     () => sessions.find((s) => s.id === activeSessionId) ?? null,
     [sessions, activeSessionId]
   );
+
+  useEffect(() => {
+    activeSessionIdRef.current = activeSessionId;
+  }, [activeSessionId]);
 
   const activeRun = useMemo(
     () => runs.find((r) => r.id === activeRunId) ?? null,
@@ -228,15 +233,20 @@ export default function App() {
       term.loadAddon(fit);
       term.open(terminalRef.current);
       fit.fit();
-      term.onData(async (data) => {
-        if (!activeSessionId) return;
-        await invoke("pty_write", { params: { sessionId: activeSessionId, data } });
+      term.onData((data) => {
+        const sessionId = activeSessionIdRef.current;
+        if (!sessionId) return;
+        invoke("pty_write", { params: { sessionId, data } }).catch((e) =>
+          setError(String(e))
+        );
       });
       xtermRef.current = term;
       fitRef.current = fit;
+      term.focus();
     } else {
       xtermRef.current.open(terminalRef.current);
       fitRef.current?.fit();
+      xtermRef.current.focus();
     }
 
     const term = xtermRef.current;
@@ -266,6 +276,7 @@ export default function App() {
         ? `Connected to session ${activeSessionId}`
         : "Select or create a terminal session"
     );
+    xtermRef.current.focus();
   }, [nav, activeSessionId]);
 
   async function confirmAddProject() {
