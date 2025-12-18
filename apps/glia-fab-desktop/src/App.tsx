@@ -111,7 +111,7 @@ export default function App() {
 
   async function refreshRuns(projectRoot: string) {
     try {
-      const list = await invoke<RunInfo[]>("runs_list", { projectRoot });
+      const list = await invoke<RunInfo[]>("runs_list", { params: { projectRoot } });
       setRuns(list);
     } catch (e) {
       setError(String(e));
@@ -121,8 +121,7 @@ export default function App() {
   async function loadArtifacts(projectRoot: string, runId: string) {
     try {
       const list = await invoke<ArtifactInfo[]>("run_artifacts", {
-        projectRoot,
-        runId,
+        params: { projectRoot, runId },
       });
       setArtifacts(list);
       setActiveArtifactRelPath(null);
@@ -231,7 +230,7 @@ export default function App() {
       fit.fit();
       term.onData(async (data) => {
         if (!activeSessionId) return;
-        await invoke("pty_write", { sessionId: activeSessionId, data });
+        await invoke("pty_write", { params: { sessionId: activeSessionId, data } });
       });
       xtermRef.current = term;
       fitRef.current = fit;
@@ -242,15 +241,17 @@ export default function App() {
 
     const term = xtermRef.current;
     const fit = fitRef.current;
-    const onResize = () => {
-      fit?.fit();
-      if (!term) return;
-      const cols = term.cols;
-      const rows = term.rows;
-      if (activeSessionId) {
-        invoke("pty_resize", { sessionId: activeSessionId, cols, rows }).catch(() => {});
-      }
-    };
+      const onResize = () => {
+        fit?.fit();
+        if (!term) return;
+        const cols = term.cols;
+        const rows = term.rows;
+        if (activeSessionId) {
+          invoke("pty_resize", { params: { sessionId: activeSessionId, cols, rows } }).catch(
+            () => {}
+          );
+        }
+      };
     window.addEventListener("resize", onResize);
     onResize();
     return () => window.removeEventListener("resize", onResize);
@@ -282,8 +283,7 @@ export default function App() {
       });
       setActiveProjectRoot(info.root);
       await invoke("set_server_roots", {
-        viewerDir: info.viewer_dir ?? null,
-        projectRoot: info.root,
+        params: { viewerDir: info.viewer_dir ?? null, projectRoot: info.root },
       });
       await refreshRuns(info.root);
       setIsAddProjectOpen(false);
@@ -298,8 +298,7 @@ export default function App() {
     const info = projects.find((p) => p.root === root) ?? null;
     try {
       await invoke("set_server_roots", {
-        viewerDir: info?.viewer_dir ?? null,
-        projectRoot: root,
+        params: { viewerDir: info?.viewer_dir ?? null, projectRoot: root },
       });
       await refreshRuns(root);
     } catch (e) {
@@ -312,7 +311,7 @@ export default function App() {
     const cols = xtermRef.current?.cols ?? 120;
     const rows = xtermRef.current?.rows ?? 34;
     try {
-      const id = await invoke<string>("pty_create", { cwd, cols, rows });
+      const id = await invoke<string>("pty_create", { params: { cwd, cols, rows } });
       const list = await invoke<PtySessionInfo[]>("pty_list");
       setSessions(list);
       setActiveSessionId(id);
@@ -324,7 +323,7 @@ export default function App() {
 
   async function killTerminal(sessionId: string) {
     try {
-      await invoke("pty_kill", { sessionId });
+      await invoke("pty_kill", { params: { sessionId } });
     } catch (e) {
       setError(String(e));
     }
@@ -355,9 +354,11 @@ export default function App() {
 
     try {
       const job = await invoke<JobInfo>("job_start", {
-        projectRoot: activeProject.root,
-        command,
-        label: newRunLabel.trim() ? newRunLabel.trim() : null,
+        params: {
+          projectRoot: activeProject.root,
+          command,
+          label: newRunLabel.trim() ? newRunLabel.trim() : null,
+        },
       });
       setJobOutputs((prev) => ({ ...prev, [job.runId]: "" }));
       setJobExitCodes((prev) => ({ ...prev, [job.runId]: null }));
