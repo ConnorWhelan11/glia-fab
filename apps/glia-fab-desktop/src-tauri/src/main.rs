@@ -59,6 +59,116 @@ fn safe_join(root: &Path, requested_path: &str) -> Result<PathBuf> {
   Ok(out)
 }
 
+fn ensure_executable(path: &Path) -> Result<()> {
+  #[cfg(unix)]
+  {
+    use std::os::unix::fs::PermissionsExt;
+    let mut perms = fs::metadata(path)?.permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(path, perms)?;
+  }
+  Ok(())
+}
+
+fn write_executable_file(path: &Path, content: &str) -> Result<()> {
+  if let Some(parent) = path.parent() {
+    fs::create_dir_all(parent)?;
+  }
+  fs::write(path, content)?;
+  ensure_executable(path)?;
+  Ok(())
+}
+
+fn prepend_path(dir: &Path, existing: Option<std::ffi::OsString>) -> std::ffi::OsString {
+  let mut parts: Vec<std::path::PathBuf> = Vec::new();
+  parts.push(dir.to_path_buf());
+  if let Some(existing) = existing {
+    for p in std::env::split_paths(&existing) {
+      parts.push(p);
+    }
+  }
+  std::env::join_paths(parts).unwrap_or_else(|_| dir.as_os_str().to_owned())
+}
+
+fn ensure_project_shims(project_root: &Path) -> Result<PathBuf> {
+  let bin_dir = project_root.join(".glia-fab/bin");
+  fs::create_dir_all(&bin_dir)?;
+
+  struct Shim<'a> {
+    name: &'a str,
+    module: &'a str,
+  }
+
+  let shims = [
+    Shim {
+      name: "dev-kernel",
+      module: "dev_kernel.cli",
+    },
+    Shim {
+      name: "workcell",
+      module: "dev_kernel.workcell.cli",
+    },
+    Shim {
+      name: "fab-gate",
+      module: "dev_kernel.fab.gate",
+    },
+    Shim {
+      name: "fab-render",
+      module: "dev_kernel.fab.render",
+    },
+    Shim {
+      name: "fab-godot",
+      module: "dev_kernel.fab.godot",
+    },
+    Shim {
+      name: "fab-critics",
+      module: "dev_kernel.fab.critics.cli",
+    },
+    Shim {
+      name: "fab-regression",
+      module: "dev_kernel.fab.regression",
+    },
+    Shim {
+      name: "fab-scaffold",
+      module: "dev_kernel.fab.scaffolds.cli",
+    },
+  ];
+
+  for shim in shims {
+    let path = bin_dir.join(shim.name);
+    let script = format!(
+      r#"#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${{BASH_SOURCE[0]}}")/../.." && pwd)"
+cd "$ROOT"
+
+export PYTHONUNBUFFERED=1
+export PYTHONPATH="$ROOT/dev-kernel/src${{PYTHONPATH:+:$PYTHONPATH}}"
+
+PYTHON="${{GLIA_FAB_PYTHON:-}}"
+if [[ -z "$PYTHON" ]]; then
+  if [[ -n "${{VIRTUAL_ENV:-}}" && -x "${{VIRTUAL_ENV}}/bin/python" ]]; then
+    PYTHON="${{VIRTUAL_ENV}}/bin/python"
+  elif [[ -x "$ROOT/.venv/bin/python" ]]; then
+    PYTHON="$ROOT/.venv/bin/python"
+  elif [[ -x "$ROOT/dev-kernel/.venv/bin/python" ]]; then
+    PYTHON="$ROOT/dev-kernel/.venv/bin/python"
+  else
+    PYTHON="$(command -v python3 || command -v python)"
+  fi
+fi
+
+exec "$PYTHON" -m {module} "$@"
+"#,
+      module = shim.module
+    );
+    write_executable_file(&path, &script)?;
+  }
+
+  Ok(bin_dir)
+}
+
 fn start_local_server(roots: Arc<RwLock<WebRoots>>) -> Result<WebServerState> {
   let listener = TcpListener::bind("127.0.0.1:0").context("bind local http server")?;
   let addr = listener.local_addr().context("read local http addr")?;
@@ -230,7 +340,14 @@ fn set_server_roots(
     .write()
     .map_err(|_| "server roots lock poisoned".to_string())?;
   roots.viewer_dir = params.viewer_dir.map(PathBuf::from);
-  roots.runs_dir = params.project_root.map(|p| PathBuf::from(p).join(".glia-fab/runs"));
+  let project_root = params.project_root.as_ref().map(PathBuf::from);
+  roots.runs_dir = project_root.as_ref().map(|p| p.join(".glia-fab/runs"));
+  if let Some(project_root) = project_root {
+    let _ = ensure_project_shims(&project_root);
+    if let Some(runs_dir) = &roots.runs_dir {
+      let _ = fs::create_dir_all(runs_dir);
+    }
+  }
   Ok(())
 }
 
@@ -512,6 +629,11 @@ fn job_start(app: AppHandle, params: JobStartParams) -> CommandResult<JobInfo> {
   cmd.cwd(&params.project_root);
   cmd.env("GLIA_FAB_RUN_ID", &run_id);
   cmd.env("GLIA_FAB_RUN_DIR", run_dir_str.clone());
+  cmd.env("GLIA_FAB_PROJECT_ROOT", &params.project_root);
+  if let Ok(bin) = ensure_project_shims(&PathBuf::from(&params.project_root)) {
+    let new_path = prepend_path(&bin, std::env::var_os("PATH"));
+    cmd.env("PATH", new_path);
+  }
   if let Some(env) = &params.env {
     for (k, v) in env {
       cmd.env(k, v);
@@ -652,7 +774,13 @@ fn pty_create(
   let mut cmd = CommandBuilder::new("zsh");
   cmd.arg("-l");
   if let Some(cwd) = &params.cwd {
+    let root = PathBuf::from(cwd);
     cmd.cwd(cwd);
+    cmd.env("GLIA_FAB_PROJECT_ROOT", cwd);
+    if let Ok(bin) = ensure_project_shims(&root) {
+      let new_path = prepend_path(&bin, std::env::var_os("PATH"));
+      cmd.env("PATH", new_path);
+    }
   }
 
   let child = pair
