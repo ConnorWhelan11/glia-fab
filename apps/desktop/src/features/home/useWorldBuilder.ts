@@ -29,6 +29,7 @@ import {
   useWorldBuildEvents,
   useWorldBuildJob,
 } from "./hooks";
+import { SUBMIT_STATE_RESET_DELAY_MS } from "./constants";
 
 /** Hook configuration */
 export interface UseWorldBuilderConfig {
@@ -38,38 +39,46 @@ export interface UseWorldBuilderConfig {
   onKernelEvents?: (events: KernelEvent[]) => void;
 }
 
+/** Default blueprint for new worlds */
+const DEFAULT_BLUEPRINT: BlueprintDraft = {
+  name: "",
+  runtime: "godot",
+  outputs: ["viewer"],
+  gates: [],
+  tags: [],
+};
+
 /** Generate issue tags from blueprint */
 function blueprintToTags(blueprint: BlueprintDraft): string[] {
-  const tags: string[] = [];
+  // Use Set for O(1) duplicate checks
+  const tagSet = new Set<string>();
 
   // Asset type
-  tags.push("asset:world");
+  tagSet.add("asset:world");
 
   // Runtime
-  tags.push(`runtime:${blueprint.runtime}`);
+  tagSet.add(`runtime:${blueprint.runtime}`);
 
   // Outputs
-  blueprint.outputs.forEach((output) => tags.push(`output:${output}`));
+  for (const output of blueprint.outputs) {
+    tagSet.add(`output:${output}`);
+  }
 
   // Gates
-  tags.push("gate:fab-realism");
+  tagSet.add("gate:fab-realism");
   if (blueprint.runtime === "godot" || blueprint.runtime === "hybrid") {
-    tags.push("gate:godot");
+    tagSet.add("gate:godot");
   }
-  blueprint.gates.forEach((gate) => {
-    if (!tags.includes(`gate:${gate}`)) {
-      tags.push(`gate:${gate}`);
-    }
-  });
+  for (const gate of blueprint.gates) {
+    tagSet.add(`gate:${gate}`);
+  }
 
   // User tags
-  blueprint.tags.forEach((tag) => {
-    if (!tags.includes(tag)) {
-      tags.push(tag);
-    }
-  });
+  for (const tag of blueprint.tags) {
+    tagSet.add(tag);
+  }
 
-  return tags;
+  return Array.from(tagSet);
 }
 
 /** Create initial build state */
@@ -198,6 +207,18 @@ export function useWorldBuilder(config: UseWorldBuilderConfig = {}): WorldBuilde
     resetBlueprint,
   } = useBlueprintDraft();
 
+  // Ref for async cleanup
+  const submitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (submitTimeoutRef.current) {
+        clearTimeout(submitTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const applyTemplate = useCallback((template: WorldTemplate) => {
     setPromptText(template.promptText);
     setBlueprintDraft({
@@ -292,6 +313,17 @@ export function useWorldBuilder(config: UseWorldBuilderConfig = {}): WorldBuilde
     setActiveWorldBuild,
   });
 
+  // Helper to schedule submit state reset with cleanup
+  const scheduleSubmitReset = useCallback(() => {
+    if (submitTimeoutRef.current) {
+      clearTimeout(submitTimeoutRef.current);
+    }
+    submitTimeoutRef.current = setTimeout(() => {
+      setSubmitState("idle");
+      submitTimeoutRef.current = null;
+    }, SUBMIT_STATE_RESET_DELAY_MS);
+  }, []);
+
   // Create world - with real kernel integration when projectRoot available
   const createWorld = useCallback(async (): Promise<string | null> => {
     if (!promptText.trim()) {
@@ -333,8 +365,7 @@ export function useWorldBuilder(config: UseWorldBuilderConfig = {}): WorldBuilde
         setActiveWorldBuild(createInitialBuildState(issue.id, promptText, blueprintDraft));
 
         setSubmitState("success");
-        // Reset submit state after brief success flash (so user can start another build)
-        setTimeout(() => setSubmitState("idle"), 900);
+        scheduleSubmitReset();
         return issue.id;
       } else {
         // Fallback: mock mode when no project root
@@ -354,9 +385,7 @@ export function useWorldBuilder(config: UseWorldBuilderConfig = {}): WorldBuilde
         setActiveWorldBuild(createInitialBuildState(worldId, promptText, blueprintDraft));
 
         setSubmitState("success");
-
-        // Reset after brief delay
-        setTimeout(() => setSubmitState("idle"), 900);
+        scheduleSubmitReset();
 
         return worldId;
       }
@@ -365,12 +394,17 @@ export function useWorldBuilder(config: UseWorldBuilderConfig = {}): WorldBuilde
       setSubmitState("error");
       return null;
     }
-  }, [promptText, blueprintDraft, projectRoot, addRecentWorld]);
+  }, [promptText, blueprintDraft, projectRoot, addRecentWorld, scheduleSubmitReset]);
 
+  // FIX: Use default blueprint instead of capturing current blueprintDraft
+  // This avoids the stale closure bug where opening a recent world
+  // would use whatever blueprint was active at the time
   const openRecentWorld = useCallback(async (world: RecentWorld) => {
     const prompt = world.lastPrompt ?? "";
-    const nextBlueprint = blueprintDraft;
-    const baseState = createInitialBuildState(world.id, prompt, nextBlueprint);
+    // Use default blueprint - the world's original blueprint is in the build state
+    // or will be retrieved from the issue when the build starts
+    const worldBlueprint = DEFAULT_BLUEPRINT;
+    const baseState = createInitialBuildState(world.id, prompt, worldBlueprint);
     const status = recentStatusToBuildStatus(world.status);
 
     setActiveWorldBuild({
@@ -386,7 +420,7 @@ export function useWorldBuilder(config: UseWorldBuilderConfig = {}): WorldBuilde
     try {
       const activeJobs = await listActiveJobs();
       const matchingJob = activeJobs.find((job) =>
-        job.command.includes(`--issue ${world.id}`)
+        job.command?.includes(`--issue ${world.id}`)
       );
       if (matchingJob) {
         activeJobIdRef.current = matchingJob.jobId;
@@ -395,13 +429,13 @@ export function useWorldBuilder(config: UseWorldBuilderConfig = {}): WorldBuilde
 
       await startWorldBuild(world.id, {
         prompt,
-        blueprint: nextBlueprint,
+        blueprint: worldBlueprint,
         recentName: world.name,
       });
     } catch (error) {
       console.error("Failed to attach to active world build:", error);
     }
-  }, [blueprintDraft, projectRoot, startWorldBuild]);
+  }, [projectRoot, startWorldBuild, activeJobIdRef]);
 
   // Cancel world build (user intent: stop and return to builder)
   const cancelWorldBuild = useCallback(async () => {
@@ -425,7 +459,7 @@ export function useWorldBuilder(config: UseWorldBuilderConfig = {}): WorldBuilde
     activeJobIdRef.current = null;
     setActiveWorldBuild(null);
     setSubmitState("idle");
-  }, []);
+  }, [activeJobIdRef]);
 
   // Pause world build (best-effort stop; can be resumed/retried)
   const pauseWorldBuild = useCallback(async () => {
@@ -487,7 +521,8 @@ export function useWorldBuilder(config: UseWorldBuilderConfig = {}): WorldBuilde
     activeWorldBuild.status !== "failed"
   );
 
-  return {
+  // Memoize return object to prevent unnecessary re-renders in consumers
+  return useMemo(() => ({
     // Mode
     builderMode,
     setBuilderMode,
@@ -552,5 +587,59 @@ export function useWorldBuilder(config: UseWorldBuilderConfig = {}): WorldBuilde
     canSubmit,
     isSubmitting,
     hasKernelIntegration,
-  };
+  }), [
+    // Mode
+    builderMode,
+    setBuilderMode,
+    // Console
+    promptText,
+    setPromptText,
+    consoleFocused,
+    setConsoleFocused,
+    // Blueprint
+    blueprintDraft,
+    updateBlueprint,
+    resetBlueprint,
+    // Template
+    selectedTemplateId,
+    selectedTemplate,
+    selectTemplate,
+    templates,
+    // Recent worlds
+    recentWorlds,
+    addRecentWorld,
+    removeRecentWorld,
+    updateRecentWorld,
+    mostRecentWorld,
+    openRecentWorld,
+    // Fork source
+    forkSourceId,
+    setForkSourceId,
+    // Submit
+    submitState,
+    submitError,
+    createWorld,
+    resetSubmitState,
+    // Active Build State
+    activeWorldBuild,
+    isBuilding,
+    startWorldBuild,
+    cancelWorldBuild,
+    dismissWorldBuild,
+    pauseWorldBuild,
+    resumeWorldBuild,
+    retryWorldBuild,
+    processKernelEvents,
+    // Refinements
+    queueRefinement,
+    applyRefinementNow,
+    // Playtest
+    runPlaytest,
+    // Motion
+    prefersReducedMotion,
+    // Computed
+    canSubmit,
+    isSubmitting,
+    hasKernelIntegration,
+  ]);
 }
