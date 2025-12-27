@@ -111,7 +111,7 @@
     "chromatic": "^11.0.0",
     "eslint": "^9.34.0",
     "eslint-plugin-react": "^7.37.2",
-    "eslint-plugin-react-hooks": "^5.1.0",
+    "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-storybook": "10.1.4",
     "globals": "^16.5.0",
     "msw": "^2.11.1",
