@@ -29,7 +29,7 @@
     "@ethereum-attestation-service/eas-sdk": "^2.9.0",
     "@ensdomains/ensjs": "^4.0.0",
     "@hono/node-server": "^1.13.0",
-    "@hono/zod-validator": "^0.4.0",
+    "@hono/zod-validator": "^0.7.6",
     "@lit-protocol/lit-node-client": "^6.0.0",
     "@lit-protocol/types": "^6.0.0",
     "@tableland/sdk": "^7.0.0",
